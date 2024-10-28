@@ -66,6 +66,9 @@ struct FetchStruct
     Fault fetchFault;
     InstSeqNum fetchFaultSN;
     bool clearFetchFault;
+    bool reconverged;
+    Addr reconverged_pc;
+    Addr reconverged_seqNum;
 };
 
 /** Struct that defines the information passed from decode to rename. */

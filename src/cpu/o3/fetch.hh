@@ -527,6 +527,17 @@ class Fetch
     /** Event used to delay fault generation of translation faults */
     FinishTranslationEvent finishTranslationEvent;
 
+  private:
+    struct FetchInfo {
+        InstSeqNum seqNum;
+        Addr pc;
+    };
+    std::deque<FetchInfo> wrongPathQueue;
+    std::deque<FetchInfo> fetchTargetQueue;
+    bool reconverged;
+    std::deque<FetchInfo>::iterator wpq_it;
+    int reconverge_len;
+
   protected:
     struct FetchStatGroup : public statistics::Group
     {
@@ -575,6 +586,9 @@ class Fetch
         statistics::Distribution nisnDist;
         /** Rate of how often fetch was idle. */
         statistics::Formula idleRate;
+
+        statistics::Scalar reconvergeDetected;
+        statistics::Distribution reconvergeLength;
     } fetchStats;
 };
 
