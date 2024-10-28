@@ -100,7 +100,10 @@ Fetch::Fetch(CPU *_cpu, const BaseO3CPUParams &params)
       numThreads(params.numThreads),
       numFetchingThreads(params.smtNumFetchingThreads),
       icachePort(this, _cpu),
-      finishTranslationEvent(this), fetchStats(_cpu, this)
+      finishTranslationEvent(this),
+      reconverged(false),
+      reconverge_len(0),
+      fetchStats(_cpu, this)
 {
     if (numThreads > MaxThreads)
         fatal("numThreads (%d) is larger than compiled limit (%d),\n"
@@ -208,7 +211,11 @@ Fetch::FetchStatGroup::FetchStatGroup(CPU *cpu, Fetch *fetch)
     ADD_STAT(rate, statistics::units::Rate<
                     statistics::units::Count, statistics::units::Cycle>::get(),
              "Number of inst fetches per cycle",
-             insts / cpu->baseStats.numCycles)
+             insts / cpu->baseStats.numCycles),
+    ADD_STAT(reconvergeDetected, statistics::units::Count::get(),
+             "number of times reconvergence is detected"),
+    ADD_STAT(reconvergeLength, statistics::units::Count::get(),
+             "reconvergence length before divergence again")
 {
         icacheStallCycles
             .prereq(icacheStallCycles);
@@ -257,6 +264,11 @@ Fetch::FetchStatGroup::FetchStatGroup(CPU *cpu, Fetch *fetch)
             .flags(statistics::total);
         rate
             .flags(statistics::total);
+        reconvergeLength
+            .init(/* base value */ 0,
+              /* last value */ 256,
+              /* bucket size */ 1)
+            .flags(statistics::pdf);
 }
 void
 Fetch::setTimeBuffer(TimeBuffer<TimeStruct> *time_buffer)
@@ -747,6 +759,18 @@ Fetch::doSquash(const PCStateBase &new_pc, const DynInstPtr squashInst,
     // Empty fetch queue
     fetchQueue[tid].clear();
 
+    // Move speculative instruction stream to wrong path queue
+    wrongPathQueue.clear();
+    while (!fetchTargetQueue.empty()) {
+        // oldest entry is at front, youngest at back
+        wrongPathQueue.push_back(fetchTargetQueue.front());
+        fetchTargetQueue.pop_front();
+    }
+    fetchTargetQueue.clear();
+    wpq_it = wrongPathQueue.begin();
+    reconverged = false;
+    reconverge_len = 0;
+
     // microops are being squashed, it is not known wheather the
     // youngest non-squashed microop was  marked delayed commit
     // or not. Setting the flag to true ensures that the
@@ -906,6 +930,7 @@ Fetch::tick()
     std::advance(tid_itr,
             random_mt.random<uint8_t>(0, activeThreads->size() - 1));
 
+    toDecode->reconverged = false;
     while (available_insts != 0 && insts_to_decode < decodeWidth) {
         ThreadID tid = *tid_itr;
         if (!stalls[tid].decode && !fetchQueue[tid].empty()) {
@@ -914,11 +939,39 @@ Fetch::tick()
             DPRINTF(Fetch, "[tid:%i] [sn:%llu] Sending instruction to decode "
                     "from fetch queue. Fetch queue size: %i.\n",
                     tid, inst->seqNum, fetchQueue[tid].size());
+            // oldest entry is at back, youngest at head
+            fetchTargetQueue.push_back({inst->seqNum, inst->pcState().instAddr()});
 
             wroteToTimeBuffer = true;
             fetchQueue[tid].pop_front();
             insts_to_decode++;
             available_insts--;
+
+            if (reconverged && wpq_it != wrongPathQueue.end()) {
+                if (wpq_it->pc == inst->pcState().instAddr()) {
+                    reconverge_len += 1;
+                    wpq_it ++;
+                } else {
+                    // printf("Reconvergence len: %d\n", reconverge_len);
+                    fetchStats.reconvergeLength.sample(reconverge_len);
+                    wpq_it = wrongPathQueue.end();
+                }
+                continue;
+            }
+
+            // search reconvergence
+            for (auto it = wrongPathQueue.begin() ; it != wrongPathQueue.end(); it++) {
+                if (inst->pcState().instAddr() == it->pc) {
+                    toDecode->reconverged = true;
+                    toDecode->reconverged_pc = it->pc;
+                    toDecode->reconverged_seqNum = it->seqNum;
+                    reconverged = true;
+                    fetchStats.reconvergeDetected ++;
+                    wpq_it = it;
+                    wpq_it++;
+                    break;
+                }
+            }
         }
 
         tid_itr++;
@@ -979,6 +1032,12 @@ Fetch::checkSignalsAndUpdate(ThreadID tid)
         // Update the branch predictor if it wasn't a squashed instruction
         // that was broadcasted.
         branchPred->update(fromCommit->commitInfo[tid].doneSeqNum, tid);
+
+        // remove oldest entry from back
+        while (!fetchTargetQueue.empty() &&
+                fetchTargetQueue.back().seqNum < fromCommit->commitInfo[tid].doneSeqNum)
+            fetchTargetQueue.pop_back();
+
     }
 
     // Check squash signals from decode.
