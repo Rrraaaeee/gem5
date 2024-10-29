@@ -934,7 +934,6 @@ Fetch::tick()
     std::advance(tid_itr,
             random_mt.random<uint8_t>(0, activeThreads->size() - 1));
 
-    toDecode->reconverged = false;
     while (available_insts != 0 && insts_to_decode < decodeWidth) {
         ThreadID tid = *tid_itr;
         if (!stalls[tid].decode && !fetchQueue[tid].empty()) {
@@ -958,10 +957,12 @@ Fetch::tick()
                 // track length of reconvergence
                 if (wpq_it != wrongPathQueue.end() && wpq_it->pc == inst->pcState().instAddr()) {
                     DPRINTF(Rcvg, "[Sn:%ld] match pc %d %lx\n", inst->seqNum, reconverge_len, wpq_it->pc);
+                    inst->reconvergeMid(true);
                     reconverge_len += 1;
                     wpq_it ++;
                 } else if (!diverged) {
                     DPRINTF(Rcvg, "end pc\n");
+                    inst->reconvergeEnd(true);
                     fetchStats.reconvergeLength.sample(reconverge_len);
                     wpq_it = wrongPathQueue.end();
                     diverged = true;
@@ -1612,9 +1613,7 @@ void Fetch::try_find_reconvergence(const DynInstPtr& inst) {
     for (auto it = wrongPathQueue.begin() ; it != wrongPathQueue.end(); it++) {
         if (inst->pcState().instAddr() == it->pc) {
             DPRINTF(Rcvg, "[Sn:%ld] start pc %lx\n", inst->seqNum, it->pc);
-            toDecode->reconverged = true;
-            toDecode->reconverged_pc = it->pc;
-            toDecode->reconverged_seqNum = it->seqNum;
+            inst->reconvergeStart(true);
             reconverged = true;
             diverged = false;
             fetchStats.reconvergeDetected ++;
