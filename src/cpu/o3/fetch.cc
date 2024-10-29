@@ -102,6 +102,7 @@ Fetch::Fetch(CPU *_cpu, const BaseO3CPUParams &params)
       icachePort(this, _cpu),
       finishTranslationEvent(this),
       reconverged(false),
+      diverged(false),
       reconverge_len(0),
       fetchStats(_cpu, this)
 {
@@ -738,6 +739,7 @@ Fetch::doSquash(const PCStateBase &new_pc, const DynInstPtr squashInst,
     fetchQueue[tid].clear();
 
     // Move speculative instruction stream to wrong path queue
+    DPRINTF(Rcvg, "squash detected on pc %lx\n", squashInst ? squashInst->pcState().instAddr() : 0);
     wrongPathQueue.clear();
     while (!fetchTargetQueue.empty()) {
         // oldest entry is at front, youngest at back
@@ -747,6 +749,7 @@ Fetch::doSquash(const PCStateBase &new_pc, const DynInstPtr squashInst,
     fetchTargetQueue.clear();
     wpq_it = wrongPathQueue.begin();
     reconverged = false;
+    diverged = false;
     reconverge_len = 0;
 
     // microops are being squashed, it is not known wheather the
@@ -925,31 +928,20 @@ Fetch::tick()
             insts_to_decode++;
             available_insts--;
 
-            if (reconverged && wpq_it != wrongPathQueue.end()) {
-                if (wpq_it->pc == inst->pcState().instAddr()) {
-                    DPRINTF(Rcvg, "match pc %d %lx\n", reconverge_len, wpq_it->pc);
+            if (!reconverged) {
+                assert(!diverged);
+                try_find_reconvergence(inst);
+            } else {
+                // track length of reconvergence
+                if (wpq_it != wrongPathQueue.end() && wpq_it->pc == inst->pcState().instAddr()) {
+                    DPRINTF(Rcvg, "[Sn:%ld] match pc %d %lx\n", inst->seqNum, reconverge_len, wpq_it->pc);
                     reconverge_len += 1;
                     wpq_it ++;
-                } else {
+                } else if (!diverged) {
                     DPRINTF(Rcvg, "end pc\n");
                     fetchStats.reconvergeLength.sample(reconverge_len);
                     wpq_it = wrongPathQueue.end();
-                }
-                continue;
-            }
-
-            // search reconvergence
-            for (auto it = wrongPathQueue.begin() ; it != wrongPathQueue.end(); it++) {
-                if (inst->pcState().instAddr() == it->pc) {
-                    DPRINTF(Rcvg, "start pc %lx\n", wpq_it->pc);
-                    toDecode->reconverged = true;
-                    toDecode->reconverged_pc = it->pc;
-                    toDecode->reconverged_seqNum = it->seqNum;
-                    reconverged = true;
-                    fetchStats.reconvergeDetected ++;
-                    wpq_it = it;
-                    wpq_it++;
-                    break;
+                    diverged = true;
                 }
             }
         }
@@ -1590,6 +1582,24 @@ Fetch::pipelineIcacheAccesses(ThreadID tid)
                 "starting at PC %s.\n", tid, this_pc);
 
         fetchCacheLine(fetchAddr, tid, this_pc.instAddr());
+    }
+}
+
+void Fetch::try_find_reconvergence(const DynInstPtr& inst) {
+    // search reconvergence
+    for (auto it = wrongPathQueue.begin() ; it != wrongPathQueue.end(); it++) {
+        if (inst->pcState().instAddr() == it->pc) {
+            DPRINTF(Rcvg, "[Sn:%ld] start pc %lx\n", inst->seqNum, it->pc);
+            toDecode->reconverged = true;
+            toDecode->reconverged_pc = it->pc;
+            toDecode->reconverged_seqNum = it->seqNum;
+            reconverged = true;
+            diverged = false;
+            fetchStats.reconvergeDetected ++;
+            wpq_it = it;
+            wpq_it++;
+            break;
+        }
     }
 }
 
