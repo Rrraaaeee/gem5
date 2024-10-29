@@ -187,6 +187,9 @@ class DynInst : public ExecContext, public RefCounted
         ReqMade,
         MemOpDone,
         HtmFromTransaction,
+        ReconvergeStart,
+        ReconvergeMid,
+        ReconvergeEnd,
         MaxFlags
     };
 
@@ -381,6 +384,14 @@ class DynInst : public ExecContext, public RefCounted
     bool notAnInst() const { return instFlags[NotAnInst]; }
     void setNotAnInst() { instFlags[NotAnInst] = true; }
 
+    bool reconvergeStart() const { return instFlags[ReconvergeStart]; }
+    void reconvergeStart(bool b) { instFlags[ReconvergeStart] = b; }
+
+    bool reconvergeMid() const { return instFlags[ReconvergeMid]; }
+    void reconvergeMid(bool b) { instFlags[ReconvergeMid] = b; }
+
+    bool reconvergeEnd() const { return instFlags[ReconvergeEnd]; }
+    void reconvergeEnd(bool b) { instFlags[ReconvergeEnd] = b; }
 
     ////////////////////////////////////////////
     //
