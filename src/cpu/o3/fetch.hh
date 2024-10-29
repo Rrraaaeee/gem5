@@ -529,6 +529,9 @@ class Fetch
     FinishTranslationEvent finishTranslationEvent;
 
   private:
+
+    void try_find_reconvergence(const DynInstPtr& inst);
+
     struct FetchInfo {
         InstSeqNum seqNum;
         Addr pc;
@@ -536,8 +539,10 @@ class Fetch
     std::deque<FetchInfo> wrongPathQueue;
     std::deque<FetchInfo> fetchTargetQueue;
     bool reconverged;
+    bool diverged;
     std::deque<FetchInfo>::iterator wpq_it;
     int reconverge_len;
+
 
   protected:
     struct FetchStatGroup : public statistics::Group
