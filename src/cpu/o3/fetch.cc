@@ -60,6 +60,7 @@
 #include "debug/Drain.hh"
 #include "debug/Fetch.hh"
 #include "debug/O3CPU.hh"
+#include "debug/Rcvg.hh"
 #include "debug/O3PipeView.hh"
 #include "mem/packet.hh"
 #include "params/BaseO3CPU.hh"
@@ -926,10 +927,11 @@ Fetch::tick()
 
             if (reconverged && wpq_it != wrongPathQueue.end()) {
                 if (wpq_it->pc == inst->pcState().instAddr()) {
+                    DPRINTF(Rcvg, "match pc %d %lx\n", reconverge_len, wpq_it->pc);
                     reconverge_len += 1;
                     wpq_it ++;
                 } else {
-                    // printf("Reconvergence len: %d\n", reconverge_len);
+                    DPRINTF(Rcvg, "end pc\n");
                     fetchStats.reconvergeLength.sample(reconverge_len);
                     wpq_it = wrongPathQueue.end();
                 }
@@ -939,6 +941,7 @@ Fetch::tick()
             // search reconvergence
             for (auto it = wrongPathQueue.begin() ; it != wrongPathQueue.end(); it++) {
                 if (inst->pcState().instAddr() == it->pc) {
+                    DPRINTF(Rcvg, "start pc %lx\n", wpq_it->pc);
                     toDecode->reconverged = true;
                     toDecode->reconverged_pc = it->pc;
                     toDecode->reconverged_seqNum = it->seqNum;
