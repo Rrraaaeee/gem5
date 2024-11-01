@@ -59,7 +59,8 @@ namespace o3
 {
 
 Rename::Rename(CPU *_cpu, const BaseO3CPUParams &params)
-    : cpu(_cpu),
+    : ProbeListener(_cpu->getProbeManager(), "ren"),
+      cpu(_cpu),
       iewToRenameDelay(params.iewToRenameDelay),
       decodeToRenameDelay(params.decodeToRenameDelay),
       commitToRenameDelay(params.commitToRenameDelay),
@@ -1443,6 +1444,13 @@ Rename::dumpHistory()
         }
     }
 }
+
+void
+Rename::notify(DynInstPtr inst)
+{
+    printf("[Seq: %lu]Inst %lx squashed!\n", inst->seqNum, inst->pcState().instAddr());
+}
+
 
 } // namespace o3
 } // namespace gem5
