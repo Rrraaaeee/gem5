@@ -75,7 +75,7 @@ namespace o3
  * and does so by stalling on the instruction until the ROB is empty
  * and there are no instructions in flight to the ROB.
  */
-class Rename
+class Rename : public ProbeListener
 {
   public:
     // A deque is used to queue the instructions. Barrier insts must
@@ -151,6 +151,8 @@ class Rename
     {
         commit_ptr = commit_stage;
     }
+
+    virtual void notify(DynInstPtr inst);
 
   private:
     /** Pointer to IEW stage. Used only for initialization. */
