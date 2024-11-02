@@ -144,6 +144,7 @@ Commit::regProbePoints()
     ppSquash = new ProbePointArg<DynInstPtr>(
             cpu->getProbeManager(), "Squash");
     ppSquash->addListener(&cpu->rename);
+    ppCommit->addListener(&cpu->rename);
 }
 
 Commit::CommitStats::CommitStats(CPU *cpu, Commit *commit)

@@ -62,6 +62,9 @@ namespace o3
 Rename::Rename(CPU *_cpu, const BaseO3CPUParams &params)
     : ProbeListener(_cpu->getProbeManager(), "ren"),
       cpu(_cpu),
+      reconverged(false),
+      diverged(false),
+      receive_squash(false),
       iewToRenameDelay(params.iewToRenameDelay),
       decodeToRenameDelay(params.decodeToRenameDelay),
       commitToRenameDelay(params.commitToRenameDelay),
@@ -88,6 +91,8 @@ Rename::Rename(CPU *_cpu, const BaseO3CPUParams &params)
         serializeInst[tid] = nullptr;
         serializeOnNextInst[tid] = false;
     }
+
+    memset(poison_set, 0, 128*sizeof(int));
 }
 
 std::string
@@ -398,6 +403,13 @@ Rename::squash(const InstSeqNum &squash_seq_num, ThreadID tid)
 
     // Clear the skid buffer in case it has any data in it.
     skidBuffer[tid].clear();
+
+    wrongPathQueue.clear();
+    wpq_it = wrongPathQueue.begin();
+    reconverged=false;
+    diverged=false;
+    receive_squash=true;
+    memset(poison_set, 0, 128*sizeof(int));
 
     doSquash(squash_seq_num, tid);
 }
@@ -724,9 +736,30 @@ Rename::renameInsts(ThreadID tid)
             serializeAfter(insts_to_rename, tid);
         }
 
+        // Here we do the actual rename
+        if (!reconverged) {
+            try_find_reconvergence(inst);
+        }
+
+        if (reconverged) {
+            if (wpq_it != wrongPathQueue.end() && wpq_it->pc == inst->pcState().instAddr()) {
+                if (!src_are_poisoned(inst)) {
+                    DPRINTF(Rcvg, "[Seq %ld] Reconverge pc %lx is CIDI\n", wpq_it->seqNum, inst->pcState().instAddr());
+                    // printf("[Seq %ld] Reconverge pc %lx is CIDI\n", wpq_it->seqNum, inst->pcState().instAddr());
+                }
+                wpq_it ++;
+            } else if (!diverged) {
+                wpq_it = wrongPathQueue.end();
+                diverged = true;
+            }
+        }
+
         renameSrcRegs(inst, inst->threadNumber);
 
         renameDestRegs(inst, inst->threadNumber);
+
+        // update poison set
+        update_poison_set(gen_inst_info(inst), poison_set);
 
         if (inst->isAtomic() || inst->isStore()) {
             storesInProgress[tid]++;
@@ -1463,33 +1496,40 @@ Rename::notify(DynInstPtr inst)
 {
     if (inst->isExecuted()) assert(inst->isIssued());
 
-    DPRINTF(Rcvg, "[Seq: %lu]Inst %lx squashed! Executed? %d\n", inst->seqNum, inst->pcState().instAddr(), inst->isIssued()&& inst->isExecuted());
+    if (inst->isSquashed() * receive_squash) {
 
-    if((inst->opClass() == IntAluOp  ||
-       inst->opClass() == IntMultOp ||
-       inst->opClass() == IntDivOp) & !inst->isControl()) {
-        if (inst->isExecuted()) stats.squashExecutedAlu++;
-        else                    stats.squashUnexecutedAlu++;
-    } else if(
-      (inst->opClass() == IntAluOp  ||
-       inst->opClass() == IntMultOp ||
-       inst->opClass() == IntDivOp) & inst->isControl()) {
-        if (inst->isExecuted()) stats.squashExecutedBru++;
-        else                    stats.squashUnexecutedBru++;
-    } else if(
-       inst->opClass() == MemReadOp  ||
-       inst->opClass() == MemWriteOp) {
-        if (inst->isExecuted()) stats.squashExecutedMem++;
-        else                    stats.squashUnexecutedMem++;
+        DPRINTF(Rcvg, "[Seq: %lu]Inst %lx squashed! Executed? %d\n", inst->seqNum, inst->pcState().instAddr(), inst->isIssued()&& inst->isExecuted());
+
+        if((inst->opClass() == IntAluOp  ||
+           inst->opClass() == IntMultOp ||
+           inst->opClass() == IntDivOp) & !inst->isControl()) {
+            if (inst->isExecuted()) stats.squashExecutedAlu++;
+            else                    stats.squashUnexecutedAlu++;
+        } else if(
+          (inst->opClass() == IntAluOp  ||
+           inst->opClass() == IntMultOp ||
+           inst->opClass() == IntDivOp) & inst->isControl()) {
+            if (inst->isExecuted()) stats.squashExecutedBru++;
+            else                    stats.squashUnexecutedBru++;
+        } else if(
+           inst->opClass() == MemReadOp  ||
+           inst->opClass() == MemWriteOp) {
+            if (inst->isExecuted()) stats.squashExecutedMem++;
+            else                    stats.squashUnexecutedMem++;
+        }
+
+        InstInfo inst_info = gen_inst_info(inst);
+        wrongPathQueue.push_back(inst_info);
+    } else {
+        receive_squash = false;
     }
-
-    gen_inst_info(inst);
 }
 
 Rename::InstInfo
 Rename::gen_inst_info(DynInstPtr inst)
 {
     InstInfo inst_info;
+    inst_info.seqNum = inst->seqNum;
     inst_info.pc = inst->pcState().instAddr();
     inst_info.isExecuted = inst->isExecuted();
     inst_info.numSrcRegs = inst->numSrcRegs();
@@ -1517,17 +1557,79 @@ Rename::gen_inst_info(DynInstPtr inst)
         inst_info.dstRegInfo[i] = reg_info;
     }
 
-    if (inst_info.isExecuted) {
-        printf("pc %lx ", inst_info.pc);
-        for (int i = 0 ; i < inst_info.numSrcRegs; i++) {
-            printf("src%i[%d] = %lu ",i, inst_info.srcRegInfo[i].reg_idx, inst_info.srcRegInfo[i].val);
-        }
-        for (int i = 0 ; i < inst_info.numDstRegs; i++) {
-            printf("dst%i[%d] = %lu ",i, inst_info.dstRegInfo[i].reg_idx, inst_info.dstRegInfo[i].val);
-        }
-        printf("\n");
-    }
+    // debug
+    // if (inst_info.isExecuted) {
+        // printf("pc %lx ", inst_info.pc);
+        // for (int i = 0 ; i < inst_info.numSrcRegs; i++) {
+            // printf("src%i[%d] = %lu ",i, inst_info.srcRegInfo[i].reg_idx, inst_info.srcRegInfo[i].val);
+        // }
+        // for (int i = 0 ; i < inst_info.numDstRegs; i++) {
+            // printf("dst%i[%d] = %lu ",i, inst_info.dstRegInfo[i].reg_idx, inst_info.dstRegInfo[i].val);
+        // }
+        // printf("\n");
+    // }
     return inst_info;
+}
+
+void Rename::try_find_reconvergence(const DynInstPtr& inst)
+{
+    // search reconvergence
+    for (auto it = wrongPathQueue.begin() ; it != wrongPathQueue.end(); it++) {
+        if (inst->pcState().instAddr() == it->pc) {
+            DPRINTF(Rcvg, "[Sn:%ld] Rename found start pc %lx\n", inst->seqNum, it->pc);
+            reconverged = true;
+            receive_squash=false; // after finding reconvergence, stop receiving squash
+            diverged = false;
+            wpq_it = it;
+            break;
+        }
+    }
+
+    if (!reconverged)
+        return;
+
+    // update poison set
+    int poison_set_tmp[128];
+    bool src_poisoned = false;
+    memset(poison_set_tmp,  0, sizeof(int) * 128);
+    for (auto it = wrongPathQueue.begin(); it != wpq_it; it++) {
+        update_poison_set(*it, poison_set_tmp);
+    }
+    for (int i = 0 ; i < 128; i++)
+        poison_set[i] |= poison_set_tmp[i];
+}
+
+void Rename::update_poison_set(const Rename::InstInfo& inst, int pset[])
+{
+    bool src_poisoned = false;
+    for (int i = 0; i < inst.numSrcRegs; i++) {
+        int flat_reg_idx = inst.srcRegInfo[i].cls_idx * 32 + inst.srcRegInfo[i].reg_idx;
+        assert(flat_reg_idx < 128);
+        if (pset[flat_reg_idx]) {
+            src_poisoned = true;
+            break;
+        }
+    }
+    for (int i = 0 ; i < inst.numDstRegs ; i++) {
+        int flat_reg_idx = inst.dstRegInfo[i].cls_idx * 32 + inst.dstRegInfo[i].reg_idx;
+        assert(flat_reg_idx < 128);
+        // poison dest if source is poisoned
+        // else dest is un-poisoned
+        pset[flat_reg_idx] = src_poisoned;
+    }
+    return;
+}
+
+bool Rename::src_are_poisoned(const DynInstPtr& inst)
+{
+    for (int i = 0; i < inst->numSrcRegs(); i++) {
+        int flat_reg_idx = inst->srcRegIdx(i).classValue() * 32 + inst->srcRegIdx(i).index();
+        assert(flat_reg_idx < 128);
+        if (poison_set[flat_reg_idx]) {
+            return true;
+        }
+    }
+    return false;
 }
 
 } // namespace o3
