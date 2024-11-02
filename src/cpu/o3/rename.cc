@@ -50,6 +50,7 @@
 #include "debug/Activity.hh"
 #include "debug/O3PipeView.hh"
 #include "debug/Rename.hh"
+#include "debug/Rcvg.hh"
 #include "params/BaseO3CPU.hh"
 
 namespace gem5
@@ -146,7 +147,19 @@ Rename::RenameStats::RenameStats(statistics::Group *parent)
       ADD_STAT(tempSerializing, statistics::units::Count::get(),
                "count of temporary serializing insts renamed"),
       ADD_STAT(skidInsts, statistics::units::Count::get(),
-               "count of insts added to the skid buffer")
+               "count of insts added to the skid buffer"),
+      ADD_STAT(squashUnexecutedAlu, statistics::units::Count::get(),
+               "squashed unexecuted alu"),
+      ADD_STAT(squashUnexecutedBru, statistics::units::Count::get(),
+               "squashed unexecuted bru"),
+      ADD_STAT(squashUnexecutedMem, statistics::units::Count::get(),
+               "squashed unexecuted mem"),
+      ADD_STAT(squashExecutedAlu, statistics::units::Count::get(),
+               "squash executed alu"),
+      ADD_STAT(squashExecutedBru, statistics::units::Count::get(),
+               "squash executed bru"),
+      ADD_STAT(squashExecutedMem, statistics::units::Count::get(),
+               "squash executed mem")
 {
     squashCycles.prereq(squashCycles);
     idleCycles.prereq(idleCycles);
@@ -1448,9 +1461,74 @@ Rename::dumpHistory()
 void
 Rename::notify(DynInstPtr inst)
 {
-    printf("[Seq: %lu]Inst %lx squashed!\n", inst->seqNum, inst->pcState().instAddr());
+    if (inst->isExecuted()) assert(inst->isIssued());
+
+    DPRINTF(Rcvg, "[Seq: %lu]Inst %lx squashed! Executed? %d\n", inst->seqNum, inst->pcState().instAddr(), inst->isIssued()&& inst->isExecuted());
+
+    if((inst->opClass() == IntAluOp  ||
+       inst->opClass() == IntMultOp ||
+       inst->opClass() == IntDivOp) & !inst->isControl()) {
+        if (inst->isExecuted()) stats.squashExecutedAlu++;
+        else                    stats.squashUnexecutedAlu++;
+    } else if(
+      (inst->opClass() == IntAluOp  ||
+       inst->opClass() == IntMultOp ||
+       inst->opClass() == IntDivOp) & inst->isControl()) {
+        if (inst->isExecuted()) stats.squashExecutedBru++;
+        else                    stats.squashUnexecutedBru++;
+    } else if(
+       inst->opClass() == MemReadOp  ||
+       inst->opClass() == MemWriteOp) {
+        if (inst->isExecuted()) stats.squashExecutedMem++;
+        else                    stats.squashUnexecutedMem++;
+    }
+
+    gen_inst_info(inst);
 }
 
+Rename::InstInfo
+Rename::gen_inst_info(DynInstPtr inst)
+{
+    InstInfo inst_info;
+    inst_info.pc = inst->pcState().instAddr();
+    inst_info.isExecuted = inst->isExecuted();
+    inst_info.numSrcRegs = inst->numSrcRegs();
+    inst_info.numDstRegs = inst->numDestRegs();
+
+    for (int i = 0 ; i < inst->numSrcRegs() ; i++) {
+        const RegId& reg = inst->srcRegIdx(i);
+        RegInfo reg_info {
+            .reg_idx = reg.index(),
+            .cls_idx = (uint32_t) reg.classValue(),
+            // .val     = inst->getRegOperand(&(*inst->staticInst), i)
+            .val     = inst->src_reg_vals[i]
+        };
+        inst_info.srcRegInfo[i] = reg_info;
+    }
+    for (int i = 0 ; i < inst->numDestRegs() ; i++) {
+        const RegId& reg = inst->destRegIdx(i);
+        RegInfo reg_info {
+            .reg_idx = reg.index(),
+            .cls_idx = (uint32_t) reg.classValue(),
+            // .val     = inst->getDestRegOperand(&(*inst->staticInst), i)
+            // .val     = inst->traceData->getIntData()
+            .val     = inst->dst_reg_vals[i]
+        };
+        inst_info.dstRegInfo[i] = reg_info;
+    }
+
+    if (inst_info.isExecuted) {
+        printf("pc %lx ", inst_info.pc);
+        for (int i = 0 ; i < inst_info.numSrcRegs; i++) {
+            printf("src%i[%d] = %lu ",i, inst_info.srcRegInfo[i].reg_idx, inst_info.srcRegInfo[i].val);
+        }
+        for (int i = 0 ; i < inst_info.numDstRegs; i++) {
+            printf("dst%i[%d] = %lu ",i, inst_info.dstRegInfo[i].reg_idx, inst_info.dstRegInfo[i].val);
+        }
+        printf("\n");
+    }
+    return inst_info;
+}
 
 } // namespace o3
 } // namespace gem5

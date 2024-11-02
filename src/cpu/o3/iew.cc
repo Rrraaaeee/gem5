@@ -1136,7 +1136,7 @@ IEW::executeInsts()
 
             // Consider this instruction executed so that commit can go
             // ahead and retire the instruction.
-            inst->setExecuted();
+            // inst->setExecuted(); // INFO: Squashed inst is not executed
 
             // Not sure if I should set this here or just let commit try to
             // commit any squashed instructions.  I like the latter a bit more.
