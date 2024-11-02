@@ -43,21 +43,14 @@ from m5.params import *
 from m5.objects.FuncUnit import *
 
 class IntALU(FUDesc):
-    opList = [ OpDesc(opClass='IntAlu') ]
-    count = 6
+    opList = [OpDesc(opClass="IntAlu")]
+    count = 8
 
 class IntMultDiv(FUDesc):
     opList = [ OpDesc(opClass='IntMult', opLat=3),
                OpDesc(opClass='IntDiv', opLat=20, pipelined=False) ]
 
-    # DIV and IDIV instructions in x86 are implemented using a loop which
-    # issues division microops.  The latency of these microops should really be
-    # one (or a small number) cycle each since each of these computes one bit
-    # of the quotient.
-    if buildEnv['TARGET_ISA'] in ('x86'):
-        opList[1].opLat=1
-
-    count=2
+    count = 4
 
 class FP_ALU(FUDesc):
     opList = [ OpDesc(opClass='FloatAdd', opLat=2),

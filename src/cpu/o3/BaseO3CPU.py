@@ -125,11 +125,13 @@ class BaseO3CPU(BaseCPU):
     forwardComSize = Param.Unsigned(5,
             "Time buffer size for forward communication")
 
-    LQEntries = Param.Unsigned(32, "Number of load queue entries")
-    SQEntries = Param.Unsigned(32, "Number of store queue entries")
-    LSQDepCheckShift = Param.Unsigned(4,
-            "Number of places to shift addr before check")
-    LSQCheckLoads = Param.Bool(True,
+    LQEntries = Param.Unsigned(96, "Number of load queue entries")
+    SQEntries = Param.Unsigned(96, "Number of store queue entries")
+    LSQDepCheckShift = Param.Unsigned(
+        0, "Number of places to shift addr before check"
+    )
+    LSQCheckLoads = Param.Bool(
+        True,
         "Should dependency violations be checked for "
         "loads & stores or just stores")
     store_set_clear_period = Param.Unsigned(250000,

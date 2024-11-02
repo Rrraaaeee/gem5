@@ -461,6 +461,26 @@ class Rename : public ProbeListener
     /** The maximum skid buffer size. */
     unsigned skidBufferMax;
 
+  public:
+    /** Member structs */
+    struct RegInfo {
+        uint32_t reg_idx;
+        uint32_t cls_idx;
+        uint64_t val;
+    };
+
+    struct InstInfo {
+        Addr pc;
+        bool isExecuted;
+        uint8_t numSrcRegs;
+        uint8_t numDstRegs;
+        RegInfo srcRegInfo[3];
+        RegInfo dstRegInfo[1];
+    };
+
+    InstInfo gen_inst_info(DynInstPtr inst);
+
+
     /** Enum to record the source of a structure full stall.  Can come from
      * either ROB, IQ, LSQ, and it is priortized in that order.
      */
@@ -534,6 +554,13 @@ class Rename : public ProbeListener
         statistics::Scalar tempSerializing;
         /** Number of instructions inserted into skid buffers. */
         statistics::Scalar skidInsts;
+
+        statistics::Scalar squashUnexecutedAlu;
+        statistics::Scalar squashUnexecutedBru;
+        statistics::Scalar squashUnexecutedMem;
+        statistics::Scalar squashExecutedAlu;
+        statistics::Scalar squashExecutedBru;
+        statistics::Scalar squashExecutedMem;
     } stats;
 };
 

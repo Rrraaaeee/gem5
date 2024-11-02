@@ -357,6 +357,8 @@ class DynInst : public ExecContext, public RefCounted
     ssize_t sqIdx = -1;
     typename LSQUnit::SQIterator sqIt;
 
+    uint64_t src_reg_vals[4];
+    uint64_t dst_reg_vals[2];
 
     /////////////////////// TLB Miss //////////////////////
     /**
@@ -1156,6 +1158,15 @@ class DynInst : public ExecContext, public RefCounted
         if (reg->is(InvalidRegClass))
             return;
         cpu->getReg(reg, val);
+    }
+
+    RegVal
+    getDestRegOperand(const StaticInst *si, int idx)
+    {
+        const PhysRegIdPtr reg = renamedDestIdx(idx);
+        if (reg->is(InvalidRegClass))
+            return 0;
+        return cpu->getReg(reg, threadNumber);
     }
 
     void *
