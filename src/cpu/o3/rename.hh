@@ -470,6 +470,7 @@ class Rename : public ProbeListener
     };
 
     struct InstInfo {
+        InstSeqNum seqNum;
         Addr pc;
         bool isExecuted;
         uint8_t numSrcRegs;
@@ -478,8 +479,17 @@ class Rename : public ProbeListener
         RegInfo dstRegInfo[1];
     };
 
-    InstInfo gen_inst_info(DynInstPtr inst);
+    void try_find_reconvergence(const DynInstPtr& inst);
+    void update_poison_set(const InstInfo& inst, int pset[]);
+    bool src_are_poisoned(const DynInstPtr& inst);
 
+    InstInfo gen_inst_info(DynInstPtr inst);
+    std::deque<InstInfo> wrongPathQueue;
+    std::deque<InstInfo>::iterator wpq_it;
+    int poison_set[128];
+    bool reconverged;
+    bool diverged;
+    bool receive_squash;
 
     /** Enum to record the source of a structure full stall.  Can come from
      * either ROB, IQ, LSQ, and it is priortized in that order.
