@@ -740,7 +740,7 @@ Rename::renameInsts(ThreadID tid)
 
         if (reconverged) {
             if (wpq_it != wrongPathQueue.end() && wpq_it->pc == inst->pcState().instAddr()) {
-                if (!src_are_poisoned(inst) && wpq_it->isExecuted) {
+                if (!src_are_poisoned(inst) && wpq_it->isExecuted && !wpq_it->isMemRef) {
                     DPRINTF(Rcvg, "[Seq %ld] Reconverge pc %lx is CIDI\n", wpq_it->seqNum, inst->pcState().instAddr());
                     inst->reconvergeValid(true);
                     for (int i = 0 ; i < wpq_it->numSrcRegs; i++) {
@@ -1516,6 +1516,7 @@ Rename::gen_inst_info(DynInstPtr inst)
     inst_info.seqNum = inst->seqNum;
     inst_info.pc = inst->pcState().instAddr();
     inst_info.isExecuted = inst->isExecuted();
+    inst_info.isMemRef   = inst->isMemRef();
     inst_info.numSrcRegs = inst->numSrcRegs();
     inst_info.numDstRegs = inst->numDestRegs();
 
@@ -1586,12 +1587,16 @@ void Rename::try_find_reconvergence(const DynInstPtr& inst)
 void Rename::update_poison_set(const Rename::InstInfo& inst, int pset[])
 {
     bool src_poisoned = false;
-    for (int i = 0; i < inst.numSrcRegs; i++) {
-        int flat_reg_idx = inst.srcRegInfo[i].cls_idx * 32 + inst.srcRegInfo[i].reg_idx;
-        assert(flat_reg_idx < 128);
-        if (pset[flat_reg_idx]) {
-            src_poisoned = true;
-            break;
+    if (inst.isMemRef) {
+        src_poisoned = true;
+    } else {
+        for (int i = 0; i < inst.numSrcRegs; i++) {
+            int flat_reg_idx = inst.srcRegInfo[i].cls_idx * 32 + inst.srcRegInfo[i].reg_idx;
+            assert(flat_reg_idx < 128);
+            if (pset[flat_reg_idx]) {
+                src_poisoned = true;
+                break;
+            }
         }
     }
     for (int i = 0 ; i < inst.numDstRegs ; i++) {
