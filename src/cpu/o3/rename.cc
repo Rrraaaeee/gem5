@@ -740,9 +740,15 @@ Rename::renameInsts(ThreadID tid)
 
         if (reconverged) {
             if (wpq_it != wrongPathQueue.end() && wpq_it->pc == inst->pcState().instAddr()) {
-                if (!src_are_poisoned(inst)) {
+                if (!src_are_poisoned(inst) && wpq_it->isExecuted) {
                     DPRINTF(Rcvg, "[Seq %ld] Reconverge pc %lx is CIDI\n", wpq_it->seqNum, inst->pcState().instAddr());
-                    // printf("[Seq %ld] Reconverge pc %lx is CIDI\n", wpq_it->seqNum, inst->pcState().instAddr());
+                    inst->reconvergeValid(true);
+                    for (int i = 0 ; i < wpq_it->numSrcRegs; i++) {
+                        inst->reuse_src_reg_vals[i] = wpq_it->srcRegInfo[i].val;
+                    }
+                    for (int i = 0 ; i < wpq_it->numDstRegs; i++) {
+                        inst->reuse_dst_reg_vals[i] = wpq_it->dstRegInfo[i].val;
+                    }
                 }
                 wpq_it ++;
             } else if (!diverged) {
@@ -1474,7 +1480,7 @@ Rename::notify(DynInstPtr inst)
 {
     if (inst->isExecuted()) assert(inst->isIssued());
 
-    if (inst->isSquashed() * receive_squash) {
+    if (inst->isSquashed() && receive_squash) {
 
         DPRINTF(Rcvg, "[Seq: %lu]Inst %lx squashed! Executed? %d\n", inst->seqNum, inst->pcState().instAddr(), inst->isIssued()&& inst->isExecuted());
 

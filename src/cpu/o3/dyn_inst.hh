@@ -190,6 +190,7 @@ class DynInst : public ExecContext, public RefCounted
         ReconvergeStart,
         ReconvergeMid,
         ReconvergeEnd,
+        ReconvergeValid,
         MaxFlags
     };
 
@@ -360,6 +361,9 @@ class DynInst : public ExecContext, public RefCounted
     uint64_t src_reg_vals[4];
     uint64_t dst_reg_vals[2];
 
+    uint64_t reuse_src_reg_vals[4];
+    uint64_t reuse_dst_reg_vals[2];
+
     /////////////////////// TLB Miss //////////////////////
     /**
      * Saved memory request (needed when the DTB address translation is
@@ -394,6 +398,9 @@ class DynInst : public ExecContext, public RefCounted
 
     bool reconvergeEnd() const { return instFlags[ReconvergeEnd]; }
     void reconvergeEnd(bool b) { instFlags[ReconvergeEnd] = b; }
+
+    bool reconvergeValid() const { return instFlags[ReconvergeValid]; }
+    void reconvergeValid(bool b) { instFlags[ReconvergeValid] = b; }
 
     ////////////////////////////////////////////
     //

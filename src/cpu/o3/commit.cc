@@ -1025,6 +1025,20 @@ Commit::commitInsts()
                 stats.committedInstType[tid][head_inst->opClass()]++;
                 ppCommit->notify(head_inst);
 
+                // reconvergence
+                if (head_inst->reconvergeValid()) {
+                    for (int i = 0 ; i < head_inst->numSrcRegs(); i++) {
+                        printf("[Reuse] pc %lx src%d %lx == %lx %d\n", head_inst->pcState().instAddr(),
+                        i, head_inst->src_reg_vals[i], head_inst->reuse_src_reg_vals[i],
+                        head_inst->src_reg_vals[i] == head_inst->reuse_src_reg_vals[i]);
+                    }
+                    for (int i = 0 ; i < head_inst->numDestRegs(); i++) {
+                        printf("[Reuse] pc %lx dst%d %lx == %lx %d\n", head_inst->pcState().instAddr(),
+                        i, head_inst->dst_reg_vals[i], head_inst->reuse_dst_reg_vals[i],
+                        head_inst->dst_reg_vals[i] == head_inst->reuse_dst_reg_vals[i]);
+                    }
+                }
+
                 // hardware transactional memory
 
                 // update nesting depth
