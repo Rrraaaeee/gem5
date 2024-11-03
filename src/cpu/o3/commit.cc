@@ -167,7 +167,11 @@ Commit::CommitStats::CommitStats(CPU *cpu, Commit *commit)
       ADD_STAT(committedInstType, statistics::units::Count::get(),
                "Class of committed instruction"),
       ADD_STAT(commitEligibleSamples, statistics::units::Cycle::get(),
-               "number cycles where commit BW limit reached")
+               "number cycles where commit BW limit reached"),
+      ADD_STAT(reconvergeSuccess, statistics::units::Cycle::get(),
+               "success reuse"),
+      ADD_STAT(reconvergeFail, statistics::units::Cycle::get(),
+               "failed reuse")
 {
     using namespace statistics;
 
@@ -981,16 +985,29 @@ Commit::commitInsts()
 
                 // reconvergence
                 if (head_inst->reconvergeValid()) {
+                    bool success = true;
                     for (int i = 0 ; i < head_inst->numSrcRegs(); i++) {
-                        printf("[Reuse] pc %lx src%d %lx == %lx %d\n", head_inst->pcState().instAddr(),
-                        i, head_inst->src_reg_vals[i], head_inst->reuse_src_reg_vals[i],
-                        head_inst->src_reg_vals[i] == head_inst->reuse_src_reg_vals[i]);
+                        // printf("[Reuse] pc %lx src%d %lx == %lx %d\n", head_inst->pcState().instAddr(),
+                        // i, head_inst->src_reg_vals[i], head_inst->reuse_src_reg_vals[i],
+                        // head_inst->src_reg_vals[i] == head_inst->reuse_src_reg_vals[i]);
+                        if (head_inst->src_reg_vals[i] != head_inst->reuse_src_reg_vals[i]) {
+                            success = false;
+                            break;
+                        }
                     }
                     for (int i = 0 ; i < head_inst->numDestRegs(); i++) {
-                        printf("[Reuse] pc %lx dst%d %lx == %lx %d\n", head_inst->pcState().instAddr(),
-                        i, head_inst->dst_reg_vals[i], head_inst->reuse_dst_reg_vals[i],
-                        head_inst->dst_reg_vals[i] == head_inst->reuse_dst_reg_vals[i]);
+                        // printf("[Reuse] pc %lx dst%d %lx == %lx %d\n", head_inst->pcState().instAddr(),
+                        // i, head_inst->dst_reg_vals[i], head_inst->reuse_dst_reg_vals[i],
+                        // head_inst->dst_reg_vals[i] == head_inst->reuse_dst_reg_vals[i]);
+                        if (head_inst->dst_reg_vals[i] != head_inst->reuse_dst_reg_vals[i]) {
+                            success = false;
+                            break;
+                        }
                     }
+                    if (success)
+                        stats.reconvergeSuccess++;
+                    else
+                        stats.reconvergeFail++;
                 }
 
                 // hardware transactional memory

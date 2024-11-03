@@ -490,6 +490,9 @@ class Commit
 
         /** Number of cycles where the commit bandwidth limit is reached. */
         statistics::Scalar commitEligibleSamples;
+
+        statistics::Scalar reconvergeSuccess;
+        statistics::Scalar reconvergeFail;
     } stats;
 };
 

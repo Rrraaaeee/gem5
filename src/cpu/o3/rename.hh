@@ -476,6 +476,7 @@ class Rename : public ProbeListener
         InstSeqNum seqNum;
         Addr pc;
         bool isExecuted;
+        bool isMemRef;
         uint8_t numSrcRegs;
         uint8_t numDstRegs;
         RegInfo srcRegInfo[3];
