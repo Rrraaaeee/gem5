@@ -51,6 +51,7 @@
 #include "debug/O3PipeView.hh"
 #include "debug/Rename.hh"
 #include "debug/Rcvg.hh"
+#include "debug/RcvgRename.hh"
 #include "params/BaseO3CPU.hh"
 
 namespace gem5
@@ -404,13 +405,6 @@ Rename::squash(const InstSeqNum &squash_seq_num, ThreadID tid)
     // Clear the skid buffer in case it has any data in it.
     skidBuffer[tid].clear();
 
-    wrongPathQueue.clear();
-    wpq_it = wrongPathQueue.begin();
-    reconverged=false;
-    diverged=false;
-    receive_squash=true;
-    memset(poison_set, 0, 128*sizeof(int));
-
     doSquash(squash_seq_num, tid);
 }
 
@@ -744,6 +738,7 @@ Rename::renameInsts(ThreadID tid)
         if (reconverged) {
             if (wpq_it != wrongPathQueue.end() && wpq_it->pc == inst->pcState().instAddr()) {
                 if (!src_are_poisoned(inst) && wpq_it->isExecuted && !wpq_it->isMemRef) {
+                    DPRINTF(RcvgRename, "[Rcvg][Seq %ld] Reconverge pc %lx\n", inst->seqNum, inst->pcState().instAddr());
                     DPRINTF(Rcvg, "[Seq %ld] Reconverge pc %lx is CIDI\n", wpq_it->seqNum, inst->pcState().instAddr());
                     inst->reconvergeValid(true);
                     for (int i = 0 ; i < wpq_it->numSrcRegs; i++) {
@@ -764,8 +759,10 @@ Rename::renameInsts(ThreadID tid)
 
         renameDestRegs(inst, inst->threadNumber);
 
+        DPRINTF(RcvgRename, "[Rcvg][Seq %ld] Renamed pc %lx\n", inst->seqNum, inst->pcState().instAddr());
+
         // update poison set
-        update_poison_set(gen_inst_info(inst), poison_set);
+        update_poison_set(gen_inst_info(inst), poison_set, reconverged);
 
         if (inst->isAtomic() || inst->isStore()) {
             storesInProgress[tid]++;
@@ -1502,9 +1499,21 @@ Rename::notify(DynInstPtr inst)
 {
     if (inst->isExecuted()) assert(inst->isIssued());
 
+    // if (inst->isSquashed() && receive_squash) {
+    if (inst->isSquashed() && !receive_squash) {
+        wrongPathQueue.clear();
+        wpq_it = wrongPathQueue.begin();
+        reconverged=false;
+        diverged=false;
+        receive_squash=true;
+        memset(poison_set, 0, 128*sizeof(int));
+        DPRINTF(RcvgRename, "[Sn:%ld] Found squash start pc %lx\n", inst->seqNum, inst->pcState().instAddr());
+    }
+
     if (inst->isSquashed() && receive_squash) {
 
         DPRINTF(Rcvg, "[Seq: %lu]Inst %lx squashed! Executed? %d\n", inst->seqNum, inst->pcState().instAddr(), inst->isIssued()&& inst->isExecuted());
+        DPRINTF(RcvgRename, "[Sn:%ld] recv squash pc %lx\n", inst->seqNum, inst->pcState().instAddr());
 
         if((inst->opClass() == IntAluOp  ||
            inst->opClass() == IntMultOp ||
@@ -1600,13 +1609,13 @@ void Rename::try_find_reconvergence(const DynInstPtr& inst)
     bool src_poisoned = false;
     memset(poison_set_tmp,  0, sizeof(int) * 128);
     for (auto it = wrongPathQueue.begin(); it != wpq_it; it++) {
-        update_poison_set(*it, poison_set_tmp);
+        update_poison_set(*it, poison_set_tmp,false);
     }
     for (int i = 0 ; i < 128; i++)
         poison_set[i] |= poison_set_tmp[i];
 }
 
-void Rename::update_poison_set(const Rename::InstInfo& inst, int pset[])
+void Rename::update_poison_set(const Rename::InstInfo& inst, int pset[], bool reconverged)
 {
     bool src_poisoned = false;
     if (inst.isMemRef) {
@@ -1626,7 +1635,9 @@ void Rename::update_poison_set(const Rename::InstInfo& inst, int pset[])
         assert(flat_reg_idx < 128);
         // poison dest if source is poisoned
         // else dest is un-poisoned
-        pset[flat_reg_idx] = src_poisoned;
+        // This has some issue, rethink about this
+        //  pset[flat_reg_idx] = src_poisoned;
+        pset[flat_reg_idx] = reconverged ? src_poisoned : true;
     }
     return;
 }

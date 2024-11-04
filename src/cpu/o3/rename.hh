@@ -484,7 +484,7 @@ class Rename : public ProbeListener
     };
 
     void try_find_reconvergence(const DynInstPtr& inst);
-    void update_poison_set(const InstInfo& inst, int pset[]);
+    void update_poison_set(const InstInfo& inst, int pset[], bool reconvergd);
     bool src_are_poisoned(const DynInstPtr& inst);
 
     InstInfo gen_inst_info(DynInstPtr inst);
