@@ -1052,8 +1052,10 @@ Commit::commitInsts()
                     }
                     if (success)
                         stats.reconvergeSuccess++;
-                    else
+                    else {
+                        printf("[Reuse][Seq: %ld] pc %lx failed!\n", head_inst->seqNum, head_inst->pcState().instAddr());
                         stats.reconvergeFail++;
+                    }
                 }
 
                 // hardware transactional memory
