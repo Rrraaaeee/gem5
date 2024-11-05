@@ -52,6 +52,7 @@
 #include "cpu/o3/limits.hh"
 #include "cpu/reg_class.hh"
 #include "enums/SMTQueuePolicy.hh"
+#include "sim/probe/probe.hh"
 
 namespace gem5
 {
@@ -88,6 +89,8 @@ class ROB
 
     /** ROB resource sharing policy for SMT mode. */
     SMTQueuePolicy robPolicy;
+
+    ProbePointArg<DynInstPtr> *ppSquash;
 
   public:
     /** ROB constructor.
@@ -211,6 +214,8 @@ class ROB
 
     /** Updates the tail instruction with the new youngest instruction. */
     void updateTail();
+
+    void regProbePoints();
 
     /** Reads the PC of the oldest head instruction. */
 //    uint64_t readHeadPC();

@@ -66,6 +66,7 @@ Rename::Rename(CPU *_cpu, const BaseO3CPUParams &params)
       reconverged(false),
       diverged(false),
       receive_squash(false),
+      receive_squash_done(false),
       iewToRenameDelay(params.iewToRenameDelay),
       decodeToRenameDelay(params.decodeToRenameDelay),
       commitToRenameDelay(params.commitToRenameDelay),
@@ -405,6 +406,7 @@ Rename::squash(const InstSeqNum &squash_seq_num, ThreadID tid)
     // Clear the skid buffer in case it has any data in it.
     skidBuffer[tid].clear();
 
+    DPRINTF(RcvgRename, "[Sn:%ld] rename stage is squashed.\n", squash_seq_num);
     doSquash(squash_seq_num, tid);
 }
 
@@ -1497,47 +1499,39 @@ Rename::dumpHistory()
 void
 Rename::notify(DynInstPtr inst)
 {
-    if (inst->isExecuted()) assert(inst->isIssued());
-
-    // if (inst->isSquashed() && receive_squash) {
-    if (inst->isSquashed() && !receive_squash) {
+    if ( wrongPathQueue.empty() ||
+        !wrongPathQueue.empty() && (inst->seqNum + 1) != wrongPathQueue.front().seqNum) {
+        // new squash stream
+        // once we see a squash, reset poison
+        memset(poison_set, 0, 128*sizeof(int));
         wrongPathQueue.clear();
-        wpq_it = wrongPathQueue.begin();
         reconverged=false;
         diverged=false;
-        receive_squash=true;
-        memset(poison_set, 0, 128*sizeof(int));
-        DPRINTF(RcvgRename, "[Sn:%ld] Found squash start pc %lx\n", inst->seqNum, inst->pcState().instAddr());
     }
 
-    if (inst->isSquashed() && receive_squash) {
+    DPRINTF(RcvgRename, "[Seq: %lu]Inst %lx squashed! Executed? %d\n", inst->seqNum, inst->pcState().instAddr(), inst->isIssued()&& inst->isExecuted());
+    // DPRINTF(RcvgRename, "[Sn:%ld] recv squash pc %lx\n", inst->seqNum, inst->pcState().instAddr());
 
-        DPRINTF(Rcvg, "[Seq: %lu]Inst %lx squashed! Executed? %d\n", inst->seqNum, inst->pcState().instAddr(), inst->isIssued()&& inst->isExecuted());
-        DPRINTF(RcvgRename, "[Sn:%ld] recv squash pc %lx\n", inst->seqNum, inst->pcState().instAddr());
-
-        if((inst->opClass() == IntAluOp  ||
-           inst->opClass() == IntMultOp ||
-           inst->opClass() == IntDivOp) & !inst->isControl()) {
-            if (inst->isExecuted()) stats.squashExecutedAlu++;
-            else                    stats.squashUnexecutedAlu++;
-        } else if(
-          (inst->opClass() == IntAluOp  ||
-           inst->opClass() == IntMultOp ||
-           inst->opClass() == IntDivOp) & inst->isControl()) {
-            if (inst->isExecuted()) stats.squashExecutedBru++;
-            else                    stats.squashUnexecutedBru++;
-        } else if(
-           inst->opClass() == MemReadOp  ||
-           inst->opClass() == MemWriteOp) {
-            if (inst->isExecuted()) stats.squashExecutedMem++;
-            else                    stats.squashUnexecutedMem++;
-        }
-
-        InstInfo inst_info = gen_inst_info(inst);
-        wrongPathQueue.push_back(inst_info);
-    } else {
-        receive_squash = false;
+    if((inst->opClass() == IntAluOp  ||
+       inst->opClass() == IntMultOp ||
+       inst->opClass() == IntDivOp) & !inst->isControl()) {
+        if (inst->isExecuted()) stats.squashExecutedAlu++;
+        else                    stats.squashUnexecutedAlu++;
+    } else if(
+      (inst->opClass() == IntAluOp  ||
+       inst->opClass() == IntMultOp ||
+       inst->opClass() == IntDivOp) & inst->isControl()) {
+        if (inst->isExecuted()) stats.squashExecutedBru++;
+        else                    stats.squashUnexecutedBru++;
+    } else if(
+       inst->opClass() == MemReadOp  ||
+       inst->opClass() == MemWriteOp) {
+        if (inst->isExecuted()) stats.squashExecutedMem++;
+        else                    stats.squashUnexecutedMem++;
     }
+
+    InstInfo inst_info = gen_inst_info(inst);
+    wrongPathQueue.push_front(inst_info); // rob squash happens in opp direction. If we use commit, this should be push_back
 }
 
 Rename::InstInfo
@@ -1638,6 +1632,7 @@ void Rename::update_poison_set(const Rename::InstInfo& inst, int pset[], bool re
         // This has some issue, rethink about this
         //  pset[flat_reg_idx] = src_poisoned;
         pset[flat_reg_idx] = reconverged ? src_poisoned : true;
+        DPRINTF(RcvgRename, "[Sn:%ld] Rename marks flat regid %ld to %d\n", inst.seqNum, flat_reg_idx, pset[flat_reg_idx]);
     }
     return;
 }

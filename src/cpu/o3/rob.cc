@@ -353,6 +353,7 @@ ROB::doSquash(ThreadID tid)
 
         (*squashIt[tid])->setCanCommit();
 
+        ppSquash->notify(*squashIt[tid]);
 
         if (squashIt[tid] == instList[tid].begin()) {
             DPRINTF(ROB, "Reached head of instruction list while "
@@ -539,6 +540,14 @@ ROB::findInst(ThreadID tid, InstSeqNum squash_inst)
         }
     }
     return NULL;
+}
+
+void
+ROB::regProbePoints()
+{
+    ppSquash = new ProbePointArg<DynInstPtr>(
+            cpu->getProbeManager(), "RobSquash");
+    ppSquash->addListener(&cpu->rename);
 }
 
 } // namespace o3
