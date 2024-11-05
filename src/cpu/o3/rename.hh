@@ -250,6 +250,7 @@ class Rename : public ProbeListener
     /** Removes a committed instruction's rename history. */
     void removeFromHistory(InstSeqNum inst_seq_num, ThreadID tid);
 
+    void renameRcvg(const DynInstPtr &inst, ThreadID tid);
     /** Renames the source registers of an instruction. */
     void renameSrcRegs(const DynInstPtr &inst, ThreadID tid);
 

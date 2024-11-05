@@ -739,7 +739,8 @@ Rename::renameInsts(ThreadID tid)
                 if (!src_are_poisoned(inst) && wpq_it->isExecuted && !wpq_it->isMemRef && !wpq_it->isControl) {
                     DPRINTF(RcvgRename, "[Rcvg][Seq %ld] Reconverge pc %lx\n", inst->seqNum, inst->pcState().instAddr());
                     DPRINTF(Rcvg, "[Seq %ld] Reconverge pc %lx is CIDI\n", wpq_it->seqNum, inst->pcState().instAddr());
-                    inst->reconvergeValid(true);
+                    // inst->reconvergeValid(true);
+                    inst->reconvergeValid(false);
                     for (int i = 0 ; i < wpq_it->numSrcRegs; i++) {
                         inst->reuse_src_reg_vals[i] = wpq_it->srcRegInfo[i].val;
                     }
@@ -754,15 +755,12 @@ Rename::renameInsts(ThreadID tid)
             }
         }
 
-        renameSrcRegs(inst, inst->threadNumber);
-
-        renameDestRegs(inst, inst->threadNumber);
-
-        DPRINTF(RcvgRename, "[Rcvg][Seq %ld] Renamed pc %lx\n", inst->seqNum, inst->pcState().instAddr());
         if (inst->reconvergeValid()) {
-            for (int i = 0 ; i < inst->numDestRegs(); i++) {
-                inst->setRegOperand(inst->staticInst.get(), i, &(inst->reuse_dst_reg_vals[i]));
-            }
+            renameRcvg(inst, inst->threadNumber);
+            renameDestRegs(inst, inst->threadNumber);
+        } else {
+            renameSrcRegs(inst, inst->threadNumber);
+            renameDestRegs(inst, inst->threadNumber);
         }
 
         // update poison set
@@ -1059,6 +1057,99 @@ Rename::removeFromHistory(InstSeqNum inst_seq_num, ThreadID tid)
         ++stats.committedMaps;
 
         historyBuffer[tid].erase(hb_it--);
+    }
+}
+
+void
+Rename::renameRcvg(const DynInstPtr& inst, ThreadID tid)
+{
+    DPRINTF(RcvgRename, "[Rcvg][Seq %ld] Renamed pc %lx\n", inst->seqNum, inst->pcState().instAddr());
+    // get free registers for both src and dest registers,
+    // write values to src and dst registers directly and mark as valid
+
+    gem5::ThreadContext *tc = inst->tcBase();
+    UnifiedRenameMap *map = renameMap[tid];
+
+    for (int src_idx = 0 ; src_idx < inst->numSrcRegs(); src_idx ++) {
+        const RegId& src_reg = inst->srcRegIdx(src_idx);
+        UnifiedRenameMap::RenameInfo rename_result;
+
+        RegId flat_src_regid = tc->flattenRegId(src_reg);
+        rename_result = map->rename(flat_src_regid);
+
+        DPRINTF(RcvgRename,
+                "[tid:%i] "
+                "Renaming src arch reg %i (%s) to physical reg %i (%i).\n",
+                tid, src_reg.index(), src_reg.className(),
+                rename_result.first->index(),
+                rename_result.first->flatIndex());
+
+        // Record the rename information so that a history can be kept.
+        RenameHistory hb_entry(inst->seqNum, flat_src_regid,
+                               rename_result.first,
+                               rename_result.second);
+
+        historyBuffer[tid].push_front(hb_entry);
+
+        DPRINTF(RcvgRename, "[tid:%i] [sn:%llu] "
+                "Adding instruction to history buffer (size=%i).\n",
+                tid,(*historyBuffer[tid].begin()).instSeqNum,
+                historyBuffer[tid].size());
+
+        // straight set src value to reused value
+        inst->renameSrcReg(src_idx, rename_result.first);
+        scoreboard->setReg(rename_result.first);
+        // inst->setRegOperand(inst->staticInst.get(), src_idx, &(inst->reuse_src_reg_vals[src_idx]));
+        if (!rename_result.first->is(InvalidRegClass))
+            cpu->setReg(rename_result.first, &(inst->reuse_src_reg_vals[src_idx]));
+        inst->markSrcRegReady(src_idx);
+    }
+
+    // rename dst reg
+    unsigned num_dest_regs = inst->numDestRegs();
+    for (int dest_idx = 0; dest_idx < num_dest_regs; dest_idx++) {
+        const RegId& dest_reg = inst->destRegIdx(dest_idx);
+        UnifiedRenameMap::RenameInfo rename_result;
+
+        RegId flat_dest_regid = tc->flattenRegId(dest_reg);
+        flat_dest_regid.setNumPinnedWrites(dest_reg.getNumPinnedWrites());
+
+        rename_result = map->rename(flat_dest_regid);
+
+        inst->flattenedDestIdx(dest_idx, flat_dest_regid);
+
+        DPRINTF(Rename,
+                "[tid:%i] "
+                "Renaming arch reg %i (%s) to physical reg %i (%i).\n",
+                tid, dest_reg.index(), dest_reg.className(),
+                rename_result.first->index(),
+                rename_result.first->flatIndex());
+
+        // Record the rename information so that a history can be kept.
+        RenameHistory hb_entry(inst->seqNum, flat_dest_regid,
+                               rename_result.first,
+                               rename_result.second);
+
+        historyBuffer[tid].push_front(hb_entry);
+
+        DPRINTF(Rename, "[tid:%i] [sn:%llu] "
+                "Adding instruction to history buffer (size=%i).\n",
+                tid,(*historyBuffer[tid].begin()).instSeqNum,
+                historyBuffer[tid].size());
+
+        // Tell the instruction to rename the appropriate destination
+        // register (dest_idx) to the new physical register
+        // (rename_result.first), and record the previous physical
+        // register that the same logical register was renamed to
+        // (rename_result.second).
+        inst->renameDestReg(dest_idx,
+                            rename_result.first,
+                            rename_result.second);
+        scoreboard->setReg(rename_result.first);
+        // inst->setRegOperand(inst->staticInst.get(), src_idx, &(inst->reuse_src_reg_vals[src_idx]));
+        if (!rename_result.first->is(InvalidRegClass))
+            cpu->setReg(rename_result.first, &(inst->reuse_dst_reg_vals[dest_idx]));
+        inst->markSrcRegReady(dest_idx);
     }
 }
 
