@@ -115,6 +115,16 @@ Trace::ExeTracerRecord::traceInst(const StaticInstPtr &inst, bool ran)
             outs << "Predicated False";
         }
 
+        if (debug::ExecResult) {
+            outs << " Seq=" << seqNum;
+            ccprintf(outs, " Seq=%ld", seqNum);
+        }
+
+        if (debug::ExecResult && inst->isControl()) {
+            outs << " TK=" << branch_taken;
+            ccprintf(outs, " TPC=%#018x", branch_target);
+        }
+
         if (debug::ExecResult && data_status != DataInvalid) {
             switch (data_status) {
               case DataVec:
