@@ -64,6 +64,7 @@
 #include "debug/ExecFaulting.hh"
 #include "debug/HtmCpu.hh"
 #include "debug/O3PipeView.hh"
+#include "debug/RcvgRename.hh"
 #include "params/BaseO3CPU.hh"
 #include "sim/faults.hh"
 #include "sim/full_system.hh"
@@ -144,8 +145,9 @@ Commit::regProbePoints()
             cpu->getProbeManager(), "CommitStall");
     ppSquash = new ProbePointArg<DynInstPtr>(
             cpu->getProbeManager(), "Squash");
-    ppSquash->addListener(&cpu->rename);
-    ppCommit->addListener(&cpu->rename);
+    // ppSquash->addListener(&cpu->rename);
+    // ppCommit->addListener(&cpu->rename);
+    rob->regProbePoints();
 }
 
 Commit::CommitStats::CommitStats(CPU *cpu, Commit *commit)
@@ -1037,6 +1039,8 @@ Commit::commitInsts()
                         // i, head_inst->src_reg_vals[i], head_inst->reuse_src_reg_vals[i],
                         // head_inst->src_reg_vals[i] == head_inst->reuse_src_reg_vals[i]);
                         if (head_inst->src_reg_vals[i] != head_inst->reuse_src_reg_vals[i]) {
+                            DPRINTF(RcvgRename, "[Reuse][Seq: %ld] pc %lx failed due to src%d mismatch! wrong: %lx correct %lx\n",
+                                    head_inst->seqNum, head_inst->pcState().instAddr(), i, head_inst->reuse_src_reg_vals[i], head_inst->src_reg_vals[i]);
                             success = false;
                             break;
                         }
@@ -1046,6 +1050,8 @@ Commit::commitInsts()
                         // i, head_inst->dst_reg_vals[i], head_inst->reuse_dst_reg_vals[i],
                         // head_inst->dst_reg_vals[i] == head_inst->reuse_dst_reg_vals[i]);
                         if (head_inst->dst_reg_vals[i] != head_inst->reuse_dst_reg_vals[i]) {
+                            DPRINTF(RcvgRename, "[Reuse][Seq: %ld] pc %lx failed due to dst%d mismatch! wrong: %lx correct %lx\n",
+                                    head_inst->seqNum, head_inst->pcState().instAddr(), i, head_inst->reuse_dst_reg_vals[i], head_inst->dst_reg_vals[i]);
                             success = false;
                             break;
                         }
@@ -1053,7 +1059,7 @@ Commit::commitInsts()
                     if (success)
                         stats.reconvergeSuccess++;
                     else {
-                        printf("[Reuse][Seq: %ld] pc %lx failed!\n", head_inst->seqNum, head_inst->pcState().instAddr());
+                        DPRINTF(RcvgRename, "[Reuse][Seq: %ld] pc %lx failed!\n", head_inst->seqNum, head_inst->pcState().instAddr());
                         stats.reconvergeFail++;
                     }
                 }
@@ -1323,7 +1329,9 @@ Commit::commitHead(const DynInstPtr &head_inst, unsigned inst_num)
     if (head_inst->traceData) {
         head_inst->traceData->setFetchSeq(head_inst->seqNum);
         head_inst->traceData->setCPSeq(thread[tid]->numOp);
+        head_inst->traceData->setSeqNum(head_inst->seqNum);
         head_inst->traceData->dump();
+
         delete head_inst->traceData;
         head_inst->traceData = NULL;
     }

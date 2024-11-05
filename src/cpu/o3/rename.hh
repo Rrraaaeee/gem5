@@ -491,6 +491,7 @@ class Rename : public ProbeListener
     bool reconverged;
     bool diverged;
     bool receive_squash;
+    bool receive_squash_done;
 
     /** Enum to record the source of a structure full stall.  Can come from
      * either ROB, IQ, LSQ, and it is priortized in that order.
