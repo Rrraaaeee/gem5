@@ -200,8 +200,6 @@ class Rename : public ProbeListener
     /** Debugging function used to dump history buffer of renamings. */
     void dumpHistory();
 
-    void retire_phy_regs(InstSeqNum inst_seq_num, ThreadID tid);
-
   private:
     /** Reset this pipeline stage */
     void resetStage();
