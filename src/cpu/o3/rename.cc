@@ -741,7 +741,7 @@ Rename::renameInsts(ThreadID tid)
                     DPRINTF(RcvgRename, "[Rcvg][Seq %ld] Reconverge pc %lx\n", inst->seqNum, inst->pcState().instAddr());
                     DPRINTF(Rcvg, "[Seq %ld] Reconverge pc %lx is CIDI\n", wpq_it->seqNum, inst->pcState().instAddr());
                     // inst->reconvergeValid(true);
-                    inst->reconvergeValid(false);
+                    inst->reconvergeValid(true);
                     for (int i = 0 ; i < wpq_it->numSrcRegs; i++) {
                         inst->reuse_src_reg_vals[i] = wpq_it->srcRegInfo[i].val;
                     }
