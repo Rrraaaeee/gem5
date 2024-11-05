@@ -485,6 +485,7 @@ class Rename : public ProbeListener
     bool src_are_poisoned(const DynInstPtr& inst);
 
     InstInfo gen_inst_info(DynInstPtr inst);
+    std::unordered_map<InstSeqNum, PhysRegIdPtr> delayed_phy_list;
     std::deque<InstInfo> wrongPathQueue;
     std::deque<InstInfo>::iterator wpq_it;
     int poison_set[128];

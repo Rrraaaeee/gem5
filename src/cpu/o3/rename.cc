@@ -990,7 +990,9 @@ Rename::doSquash(const InstSeqNum &squashed_seq_num, ThreadID tid)
             renameMap[tid]->setEntry(hb_it->archReg, hb_it->prevPhysReg);
 
             // Put the renamed physical register back on the free list.
-            freeList->addReg(hb_it->newPhysReg);
+            // if (delayed_phy_list.find(hb_it->instSeqNum) == delayed_phy_list.end()) {
+                freeList->addReg(hb_it->newPhysReg);
+            // }
         }
 
         // Notify potential listeners that the register mapping needs to be
@@ -1000,6 +1002,7 @@ Rename::doSquash(const InstSeqNum &squashed_seq_num, ThreadID tid)
                                                 hb_it->newPhysReg));
 
         historyBuffer[tid].erase(hb_it++);
+
 
         ++stats.undoneMaps;
     }
@@ -1477,14 +1480,19 @@ Rename::dumpHistory()
 void
 Rename::notify(DynInstPtr inst)
 {
-    if ( wrongPathQueue.empty() ||
-        !wrongPathQueue.empty() && (inst->seqNum + 1) != wrongPathQueue.front().seqNum) {
+    if (( wrongPathQueue.empty()) ||
+        (!wrongPathQueue.empty() && ((inst->seqNum + 1) != wrongPathQueue.front().seqNum))) {
+
         // new squash stream
         // once we see a squash, reset poison
         memset(poison_set, 0, 128*sizeof(int));
         wrongPathQueue.clear();
         reconverged=false;
         diverged=false;
+        // for (const auto& p : delayed_phy_list) {
+            // freeList->addReg(p.second);
+        // }
+        // delayed_phy_list.clear();
     }
 
     DPRINTF(RcvgRename, "[Seq: %lu]Inst %lx squashed! Executed? %d\n", inst->seqNum, inst->pcState().instAddr(), inst->isIssued()&& inst->isExecuted());
@@ -1509,7 +1517,11 @@ Rename::notify(DynInstPtr inst)
     }
 
     InstInfo inst_info = gen_inst_info(inst);
-    wrongPathQueue.push_front(inst_info); // rob squash happens in opp direction. If we use commit, this should be push_back
+    wrongPathQueue.push_front(inst_info);
+    // if (inst_info.numDstRegs > 0 && (inst->renamedDestIdx(0) != inst->prevDestIdx(0))) {
+        // assert(inst_info.numDstRegs == 1);
+        // delayed_phy_list[inst->seqNum] = inst->renamedDestIdx(0);
+    // }
 }
 
 Rename::InstInfo
