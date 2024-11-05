@@ -80,7 +80,7 @@ Rename::Rename(CPU *_cpu, const BaseO3CPUParams &params)
              renameWidth, static_cast<int>(MaxWidth));
 
     // @todo: Make into a parameter.
-    skidBufferMax = (decodeToRenameDelay + 1) * params.decodeWidth;
+    skidBufferMax = (decodeToRenameDelay + 1) * params.decodeWidth * 10;
     for (uint32_t tid = 0; tid < MaxThreads; tid++) {
         renameStatus[tid] = Idle;
         renameMap[tid] = nullptr;

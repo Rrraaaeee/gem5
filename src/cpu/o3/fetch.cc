@@ -950,6 +950,7 @@ Fetch::tick()
             insts_to_decode++;
             available_insts--;
 
+            /*
             if (!reconverged) {
                 assert(!diverged);
                 try_find_reconvergence(inst);
@@ -968,6 +969,7 @@ Fetch::tick()
                     diverged = true;
                 }
             }
+            */
         }
 
         tid_itr++;
