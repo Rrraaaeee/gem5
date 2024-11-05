@@ -189,8 +189,15 @@ def template BranchExecute {{
     {
         %(op_decl)s;
         %(op_rd)s;
+
+        uint64_t NPC_old = NPC;
         %(code)s;
         %(op_wb)s;
+
+        if (traceData) {
+            traceData->setBranchTaken(NPC != NPC_old);
+            traceData->setBranchTarget(NPC);
+        }
         return NoFault;
     }
 
@@ -299,6 +306,11 @@ def template JumpExecute {{
         %(op_rd)s;
         %(code)s;
         %(op_wb)s;
+
+        if (traceData) {
+            traceData->setBranchTaken(true);
+            traceData->setBranchTarget(NPC);
+        }
         return NoFault;
     }
 

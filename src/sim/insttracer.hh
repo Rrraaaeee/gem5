@@ -156,6 +156,10 @@ class InstRecord
      */
     bool faulting = false;
 
+    bool branch_taken = false;
+    Addr branch_target = 0;
+    InstSeqNum seqNum = 0;
+
   public:
     InstRecord(Tick _when, ThreadContext *_thread,
                const StaticInstPtr _staticInst, const PCStateBase &_pc,
@@ -283,6 +287,12 @@ class InstRecord
     void setPredicate(bool val) { predicate = val; }
 
     void setFaulting(bool val) { faulting = val; }
+
+    void setBranchTaken(bool taken) { branch_taken = taken; }
+
+    void setBranchTarget(Addr tpc) { branch_target = tpc; }
+
+    void setSeqNum(InstSeqNum seq) { seqNum = seq; }
 
     virtual void dump() = 0;
 
