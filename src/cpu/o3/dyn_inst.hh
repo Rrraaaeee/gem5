@@ -1173,7 +1173,7 @@ class DynInst : public ExecContext, public RefCounted
         const PhysRegIdPtr reg = renamedDestIdx(idx);
         if (reg->is(InvalidRegClass))
             return 0;
-        return cpu->getReg(reg, threadNumber);
+        return cpu->getReg(reg);
     }
 
     void *
