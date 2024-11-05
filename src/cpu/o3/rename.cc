@@ -736,7 +736,7 @@ Rename::renameInsts(ThreadID tid)
 
         if (reconverged) {
             if (wpq_it != wrongPathQueue.end() && wpq_it->pc == inst->pcState().instAddr()) {
-                if (!src_are_poisoned(inst) && wpq_it->isExecuted && !wpq_it->isMemRef) {
+                if (!src_are_poisoned(inst) && wpq_it->isExecuted && !wpq_it->isMemRef && !wpq_it->isControl) {
                     DPRINTF(RcvgRename, "[Rcvg][Seq %ld] Reconverge pc %lx\n", inst->seqNum, inst->pcState().instAddr());
                     DPRINTF(Rcvg, "[Seq %ld] Reconverge pc %lx is CIDI\n", wpq_it->seqNum, inst->pcState().instAddr());
                     inst->reconvergeValid(true);
@@ -759,6 +759,11 @@ Rename::renameInsts(ThreadID tid)
         renameDestRegs(inst, inst->threadNumber);
 
         DPRINTF(RcvgRename, "[Rcvg][Seq %ld] Renamed pc %lx\n", inst->seqNum, inst->pcState().instAddr());
+        if (inst->reconvergeValid()) {
+            for (int i = 0 ; i < inst->numDestRegs(); i++) {
+                inst->setRegOperand(inst->staticInst.get(), i, &(inst->reuse_dst_reg_vals[i]));
+            }
+        }
 
         // update poison set
         update_poison_set(gen_inst_info(inst), poison_set, reconverged);
@@ -1532,6 +1537,7 @@ Rename::gen_inst_info(DynInstPtr inst)
     inst_info.pc = inst->pcState().instAddr();
     inst_info.isExecuted = inst->isExecuted();
     inst_info.isMemRef   = inst->isMemRef();
+    inst_info.isControl  = inst->isControl();
     inst_info.numSrcRegs = inst->numSrcRegs();
     inst_info.numDstRegs = inst->numDestRegs();
 
