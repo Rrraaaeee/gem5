@@ -990,18 +990,19 @@ Rename::doSquash(const InstSeqNum &squashed_seq_num, ThreadID tid)
             renameMap[tid]->setEntry(hb_it->archReg, hb_it->prevPhysReg);
 
             // Put the renamed physical register back on the free list.
-            freeList->addReg(hb_it->newPhysReg);
+            // freeList->addReg(hb_it->newPhysReg);
         }
 
         // Notify potential listeners that the register mapping needs to be
         // removed because the instruction it was mapped to got squashed. Note
         // that this is done before hb_it is incremented.
-        ppSquashInRename->notify(std::make_pair(hb_it->instSeqNum,
-                                                hb_it->newPhysReg));
+        // ppSquashInRename->notify(std::make_pair(hb_it->instSeqNum,
+                                                // hb_it->newPhysReg));
 
-        historyBuffer[tid].erase(hb_it++);
+        // historyBuffer[tid].erase(hb_it++);
 
-        ++stats.undoneMaps;
+        // ++stats.undoneMaps;
+        hb_it++;
     }
 }
 
@@ -1477,8 +1478,9 @@ Rename::dumpHistory()
 void
 Rename::notify(DynInstPtr inst)
 {
-    if ( wrongPathQueue.empty() ||
-        !wrongPathQueue.empty() && (inst->seqNum + 1) != wrongPathQueue.front().seqNum) {
+    if (( wrongPathQueue.empty()) ||
+        (!wrongPathQueue.empty()  && ((inst->seqNum + 1) != wrongPathQueue.front().seqNum))) {
+
         // new squash stream
         // once we see a squash, reset poison
         memset(poison_set, 0, 128*sizeof(int));
@@ -1625,6 +1627,54 @@ bool Rename::src_are_poisoned(const DynInstPtr& inst)
         }
     }
     return false;
+}
+
+void
+Rename::retire_phy_regs(InstSeqNum inst_seq_num, ThreadID tid)
+{
+
+    auto hb_it = historyBuffer[tid].end();
+
+    --hb_it;
+
+    if (historyBuffer[tid].empty()) {
+        DPRINTF(Rename, "[tid:%i] History buffer is empty.\n", tid);
+        return;
+    } else if (hb_it->instSeqNum > inst_seq_num) {
+        DPRINTF(Rename, "[tid:%i] [sn:%llu] "
+                "Old sequence number encountered. "
+                "Ensure that a syscall happened recently.\n",
+                tid,inst_seq_num);
+        return;
+    }
+
+    // Commit all the renames up until (and including) the committed sequence
+    // number. Some or even all of the committed instructions may not have
+    // rename histories if they did not have destination registers that were
+    // renamed.
+    while (!historyBuffer[tid].empty() &&
+           hb_it != historyBuffer[tid].end() &&
+           hb_it->instSeqNum <= inst_seq_num) {
+
+        DPRINTF(Rename, "[tid:%i] Freeing up older rename of reg %i (%s), "
+                "[sn:%llu].\n",
+                tid, hb_it->prevPhysReg->index(),
+                hb_it->prevPhysReg->className(),
+                hb_it->instSeqNum);
+
+        // Don't free special phys regs like misc and zero regs, which
+        // can be recognized because the new mapping is the same as
+        // the old one.
+        if (hb_it->newPhysReg != hb_it->prevPhysReg) {
+            freeList->addReg(hb_it->newPhysReg);
+        }
+
+        ++stats.undoneMaps;
+
+        historyBuffer[tid].erase(hb_it--);
+    }
+
+
 }
 
 } // namespace o3
