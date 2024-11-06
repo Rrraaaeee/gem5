@@ -99,7 +99,7 @@ class BaseO3CPU(BaseCPU):
                                     "delay")
     commitToRenameDelay = Param.Cycles(1, "Commit to rename delay")
     decodeToRenameDelay = Param.Cycles(1, "Decode to rename delay")
-    renameWidth = Param.Unsigned(8, "Rename width")
+    renameWidth = Param.Unsigned(12, "Rename width")
 
     commitToIEWDelay = Param.Cycles(1, "Commit to "
                "Issue/Execute/Writeback delay")
@@ -107,7 +107,7 @@ class BaseO3CPU(BaseCPU):
                "Issue/Execute/Writeback delay")
     issueToExecuteDelay = Param.Cycles(1, "Issue to execute delay (internal "
               "to the IEW stage)")
-    dispatchWidth = Param.Unsigned(8, "Dispatch width")
+    dispatchWidth = Param.Unsigned(12, "Dispatch width")
     issueWidth = Param.Unsigned(24, "Issue width")
     wbWidth = Param.Unsigned(8, "Writeback width")
     fuPool = Param.FUPool(DefaultFUPool(), "Functional Unit pool")
@@ -115,7 +115,7 @@ class BaseO3CPU(BaseCPU):
     iewToCommitDelay = Param.Cycles(1, "Issue/Execute/Writeback to commit "
                "delay")
     renameToROBDelay = Param.Cycles(1, "Rename to reorder buffer delay")
-    commitWidth = Param.Unsigned(8, "Commit width")
+    commitWidth = Param.Unsigned(12, "Commit width")
     squashWidth = Param.Unsigned(512, "Squash width")
     trapLatency = Param.Cycles(13, "Trap latency")
     fetchTrapLatency = Param.Cycles(1, "Fetch trap latency")

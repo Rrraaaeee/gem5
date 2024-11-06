@@ -615,8 +615,9 @@ Rename::renameInsts(ThreadID tid)
     }
 
     int renamed_insts = 0;
+    int normal_renamed = 0;
 
-    while (insts_available > 0 &&  toIEWIndex < renameWidth) {
+    while (insts_available > 0 &&  toIEWIndex < renameWidth && normal_renamed < renameWidth - 4) {
         DPRINTF(Rename, "[tid:%i] Sending instructions to IEW.\n", tid);
 
         assert(!insts_to_rename.empty());
@@ -770,6 +771,7 @@ Rename::renameInsts(ThreadID tid)
         } else {
             renameSrcRegs(inst, inst->threadNumber);
             renameDestRegs(inst, inst->threadNumber);
+            ++normal_renamed;
         }
 
         // update poison set
