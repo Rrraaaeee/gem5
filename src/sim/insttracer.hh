@@ -159,6 +159,7 @@ class InstRecord
     bool branch_taken = false;
     Addr branch_target = 0;
     InstSeqNum seqNum = 0;
+    bool reconverged = 0;
 
   public:
     InstRecord(Tick _when, ThreadContext *_thread,
@@ -274,6 +275,8 @@ class InstRecord
     void setBranchTarget(Addr tpc) { branch_target = tpc; }
 
     void setSeqNum(InstSeqNum seq) { seqNum = seq; }
+
+    void setReconverged(bool b) { reconverged = b; }
 
     virtual void dump() = 0;
 
