@@ -364,6 +364,10 @@ class DynInst : public ExecContext, public RefCounted
     uint64_t reuse_src_reg_vals[4];
     uint64_t reuse_dst_reg_vals[2];
 
+    bool reuse_br_vld = false;
+    bool reuse_br_taken = false;
+    Addr reuse_tpc = 0;
+
     /////////////////////// TLB Miss //////////////////////
     /**
      * Saved memory request (needed when the DTB address translation is
@@ -551,6 +555,14 @@ class DynInst : public ExecContext, public RefCounted
         std::unique_ptr<PCStateBase> next_pc(pc->clone());
         staticInst->advancePC(*next_pc);
         return *next_pc != *predPC;
+    }
+
+    Addr
+    corr_tpc()
+    {
+        std::unique_ptr<PCStateBase> next_pc(pc->clone());
+        staticInst->advancePC(*next_pc);
+        return next_pc->instAddr();
     }
 
     //

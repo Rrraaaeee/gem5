@@ -748,6 +748,15 @@ Rename::renameInsts(ThreadID tid)
                         inst->reuse_dst_reg_vals[i] = wpq_it->dstRegInfo[i].val;
                     }
                 }
+
+                if (!src_are_poisoned(inst) && wpq_it->isExecuted && wpq_it->isControl) {
+                    if (wpq_it->br_taken != inst->readPredTaken() ||
+                        wpq_it->tpc != inst->readPredTarg().instAddr()) {
+                        inst->reuse_br_vld = true;
+                        inst->reuse_br_taken = wpq_it->br_taken;
+                        inst->reuse_tpc = wpq_it->tpc;
+                    }
+                }
                 wpq_it ++;
             } else if (!diverged) {
                 wpq_it = wrongPathQueue.end();
@@ -1631,6 +1640,14 @@ Rename::gen_inst_info(DynInstPtr inst)
     inst_info.isControl  = inst->isControl();
     inst_info.numSrcRegs = inst->numSrcRegs();
     inst_info.numDstRegs = inst->numDestRegs();
+
+    if (inst->isControl() && inst->isExecuted()) {
+        inst_info.br_taken = inst->isUncondCtrl() ? true :
+                             inst->mispredicted() ? !inst->readPredTaken() :
+                             inst->readPredTaken();
+        inst_info.tpc = inst->corr_tpc();
+        inst_info.mispred = inst->mispredicted();
+    }
 
     for (int i = 0 ; i < inst->numSrcRegs() ; i++) {
         const RegId& reg = inst->srcRegIdx(i);

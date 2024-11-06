@@ -110,8 +110,8 @@ class WritePort(FUDesc):
     count = 0
 
 class RdWrPort(FUDesc):
-    opList = [ OpDesc(opClass='MemRead'), OpDesc(opClass='MemWrite'),
-               OpDesc(opClass='FloatMemRead'), OpDesc(opClass='FloatMemWrite')]
+    opList = [ OpDesc(opClass='MemRead',opLat=3), OpDesc(opClass='MemWrite',opLat=3),
+               OpDesc(opClass='FloatMemRead',opLat=3), OpDesc(opClass='FloatMemWrite',opLat=3)]
     count = 4
 
 class IprPort(FUDesc):

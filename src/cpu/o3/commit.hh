@@ -509,6 +509,10 @@ class Commit
 
         statistics::Scalar reconvergeSuccess;
         statistics::Scalar reconvergeFail;
+
+        statistics::Scalar reconvergeBrCorrect;
+        statistics::Scalar reconvergeBrWrong;
+        statistics::Scalar reconvergeBrNeutral;
     } stats;
 };
 

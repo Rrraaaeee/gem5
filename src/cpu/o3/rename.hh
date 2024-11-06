@@ -480,6 +480,11 @@ class Rename : public ProbeListener
         uint8_t numDstRegs;
         RegInfo srcRegInfo[3];
         RegInfo dstRegInfo[1];
+
+        // br info
+        bool br_taken;
+        bool mispred;
+        Addr tpc;
     };
 
     void try_find_reconvergence(const DynInstPtr& inst);

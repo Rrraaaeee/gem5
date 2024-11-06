@@ -189,7 +189,13 @@ Commit::CommitStats::CommitStats(CPU *cpu, Commit *commit)
       ADD_STAT(reconvergeSuccess, statistics::units::Cycle::get(),
                "success reuse"),
       ADD_STAT(reconvergeFail, statistics::units::Cycle::get(),
-               "failed reuse")
+               "failed reuse"),
+      ADD_STAT(reconvergeBrCorrect, statistics::units::Cycle::get(),
+               "reconverge br early redirect correctly"),
+      ADD_STAT(reconvergeBrWrong, statistics::units::Cycle::get(),
+               "reconverge br early redirect wrongly"),
+      ADD_STAT(reconvergeBrNeutral, statistics::units::Cycle::get(),
+               "reconverge br no redirection (both correct / wrong)")
 {
     using namespace statistics;
 
@@ -1061,6 +1067,23 @@ Commit::commitInsts()
                     else {
                         DPRINTF(RcvgRename, "[Reuse][Seq: %ld] pc %lx failed!\n", head_inst->seqNum, head_inst->pcState().instAddr());
                         stats.reconvergeFail++;
+                    }
+                }
+
+                if (head_inst->reuse_br_vld) {
+                    if (head_inst->reuse_br_taken != head_inst->readPredTaken() ||
+                        head_inst->reuse_tpc != head_inst->readPredTarg().instAddr()) {
+                        if (head_inst->mispredicted() && head_inst->reuse_tpc == head_inst->corr_tpc()) {
+                            stats.reconvergeBrCorrect++;
+                        } else if (head_inst->mispredicted()) {
+                            // both mispred
+                            stats.reconvergeBrNeutral++;
+                        } else {
+                            stats.reconvergeBrWrong++;
+                        }
+                    } else {
+                        // both pred correct / wrong
+                        stats.reconvergeBrNeutral++;
                     }
                 }
 
