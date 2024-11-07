@@ -335,8 +335,12 @@ class Rename : public ProbeListener
     /** Wire to get commit's output from backwards time buffer. */
     TimeBuffer<TimeStruct>::wire fromCommit;
 
+    TimeBuffer<TimeStruct>::wire fromRename;
+
     /** Wire to write infromation heading to previous stages. */
     TimeBuffer<TimeStruct>::wire toDecode;
+
+    TimeBuffer<TimeStruct>::wire toFetch;
 
     /** Rename instruction queue. */
     TimeBuffer<RenameStruct> *renameQueue;

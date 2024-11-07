@@ -557,6 +557,11 @@ class CPU : public BaseCPU
                 flags, res, std::move(amo_op), byte_enable);
     }
 
+    PCStateBase *newPCState(Addr address)
+    {
+        return isa.at(0)->newPCState(address);
+    }
+
     /** Used by the fetch unit to get a hold of the instruction port. */
     Port &
     getInstPort() override

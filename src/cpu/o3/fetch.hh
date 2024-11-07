@@ -317,6 +317,10 @@ class Fetch
                           const DynInstPtr squashInst,
                           const InstSeqNum seq_num, ThreadID tid);
 
+    void squashFromRename(const PCStateBase &new_pc,
+                          const DynInstPtr squashInst,
+                          const InstSeqNum seq_num, ThreadID tid);
+
     /** Checks if a thread is stalled. */
     bool checkStall(ThreadID tid) const;
 

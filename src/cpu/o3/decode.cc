@@ -499,7 +499,8 @@ Decode::checkSignalsAndUpdate(ThreadID tid)
     readStallSignals(tid);
 
     // Check squash signals from commit.
-    if (fromCommit->commitInfo[tid].squash) {
+    if (fromCommit->commitInfo[tid].squash ||
+        fromRename->renameInfo[tid].squash) {
 
         DPRINTF(Decode, "[tid:%i] Squashing instructions due to squash "
                 "from commit.\n", tid);

@@ -786,6 +786,19 @@ Fetch::doSquash(const PCStateBase &new_pc, const DynInstPtr squashInst,
 }
 
 void
+Fetch::squashFromRename(const PCStateBase &new_pc, const DynInstPtr squashInst,
+        const InstSeqNum seq_num, ThreadID tid)
+{
+    DPRINTF(Fetch, "[tid:%i] Squashing from rename.\n", tid);
+
+    doSquash(new_pc, squashInst, tid);
+
+    // Tell the CPU to remove any instructions that are in flight between
+    // fetch and decode.
+    cpu->removeInstsUntil(seq_num, tid);
+}
+
+void
 Fetch::squashFromDecode(const PCStateBase &new_pc, const DynInstPtr squashInst,
         const InstSeqNum seq_num, ThreadID tid)
 {
@@ -1037,6 +1050,28 @@ Fetch::checkSignalsAndUpdate(ThreadID tid)
             fetchTargetQueue.pop_back();
 
     }
+
+    if (fromRename->renameInfo[tid].squash) {
+        DPRINTF(Fetch, "[tid:%i] Squashing instructions due to squash "
+                "from rename.\n",tid);
+
+        // Update the branch predictor.
+            branchPred->squash(fromRename->renameInfo[tid].mispredictInst->seqNum,
+                    *fromRename->renameInfo[tid].nextPC,
+                     fromRename->renameInfo[tid].branchTaken, tid);
+
+        if (fetchStatus[tid] != Squashing) {
+
+            // Squash unless we're already squashing
+            squashFromRename(*fromRename->renameInfo[tid].nextPC,
+                             fromRename->renameInfo[tid].mispredictInst,
+                             fromRename->renameInfo[tid].mispredictInst->seqNum,
+                             tid);
+
+            return true;
+        }
+    }
+
 
     // Check squash signals from decode.
     if (fromDecode->decodeInfo[tid].squash) {

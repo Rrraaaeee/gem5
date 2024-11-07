@@ -129,7 +129,12 @@ struct TimeStruct
 
     DecodeComm decodeInfo[MaxThreads];
 
-    struct RenameComm {};
+    struct RenameComm {
+        bool squash;
+        bool branchTaken;
+        std::unique_ptr<PCStateBase> nextPC;
+        DynInstPtr mispredictInst;
+    };
 
     RenameComm renameInfo[MaxThreads];
 

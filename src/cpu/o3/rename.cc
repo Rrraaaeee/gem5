@@ -213,11 +213,15 @@ Rename::setTimeBuffer(TimeBuffer<TimeStruct> *tb_ptr)
     // Setup wire to read information from time buffer, from IEW stage.
     fromIEW = timeBuffer->getWire(-iewToRenameDelay);
 
+    fromRename = timeBuffer->getWire(-1);
+
     // Setup wire to read infromation from time buffer, from commit stage.
     fromCommit = timeBuffer->getWire(-commitToRenameDelay);
 
     // Setup wire to write information to previous stages.
     toDecode = timeBuffer->getWire(0);
+
+    toFetch = timeBuffer->getWire(0);
 }
 
 void
@@ -616,8 +620,10 @@ Rename::renameInsts(ThreadID tid)
 
     int renamed_insts = 0;
     int normal_renamed = 0;
+    bool early_redirect = false;
+    toFetch->renameInfo[tid].squash = false;
 
-    while (insts_available > 0 &&  toIEWIndex < renameWidth && normal_renamed < renameWidth - 4) {
+    while (insts_available > 0 &&  toIEWIndex < renameWidth && normal_renamed < renameWidth - 4 && !early_redirect) {
         DPRINTF(Rename, "[tid:%i] Sending instructions to IEW.\n", tid);
 
         assert(!insts_to_rename.empty());
@@ -737,7 +743,8 @@ Rename::renameInsts(ThreadID tid)
 
         if (reconverged) {
             if (wpq_it != wrongPathQueue.end() && wpq_it->pc == inst->pcState().instAddr()) {
-                if (!src_are_poisoned(inst) && wpq_it->isExecuted && !wpq_it->isMemRef && !wpq_it->isControl) {
+                bool src_poisoned = src_are_poisoned(inst);
+                if (!src_poisoned && wpq_it->isExecuted && !wpq_it->isMemRef && !wpq_it->isControl) {
                     DPRINTF(RcvgRename, "[Rcvg][Seq %ld] Reconverge pc %lx\n", inst->seqNum, inst->pcState().instAddr());
                     DPRINTF(Rcvg, "[Seq %ld] Reconverge pc %lx is CIDI\n", wpq_it->seqNum, inst->pcState().instAddr());
                     // inst->reconvergeValid(true);
@@ -750,15 +757,29 @@ Rename::renameInsts(ThreadID tid)
                     }
                 }
 
-                if (!src_are_poisoned(inst) && wpq_it->isExecuted && wpq_it->isControl) {
+                if (!src_poisoned && wpq_it->isExecuted && wpq_it->isControl) {
                     if (wpq_it->br_taken != inst->readPredTaken() ||
                         wpq_it->tpc != inst->readPredTarg().instAddr()) {
                         inst->reuse_br_vld = true;
                         inst->reuse_br_taken = wpq_it->br_taken;
                         inst->reuse_tpc = wpq_it->tpc;
+
+                        toFetch->renameInfo[tid].squash = true;
+                        toFetch->renameInfo[tid].mispredictInst = inst;
+                        toFetch->renameInfo[tid].branchTaken = wpq_it->br_taken;
+                        std::unique_ptr<PCStateBase> nextPC(cpu->newPCState(wpq_it->tpc));
+                        inst->setPredTaken(wpq_it->br_taken);
+                        inst->setPredTarg(*(nextPC->clone()));
+                        set(toFetch->renameInfo[tid].nextPC, nextPC);
+
+                        wpq_it = wrongPathQueue.end();
+                        diverged = true;
+
+                        early_redirect = true;
                     }
                 }
-                wpq_it ++;
+                if (!early_redirect)
+                    wpq_it ++;
             } else if (!diverged) {
                 wpq_it = wrongPathQueue.end();
                 diverged = true;
@@ -1446,6 +1467,16 @@ Rename::checkSignalsAndUpdate(ThreadID tid)
                 "commit.\n", tid);
 
         squash(fromCommit->commitInfo[tid].doneSeqNum, tid);
+
+        return true;
+    }
+
+    if (fromRename->renameInfo[tid].squash) {
+        DPRINTF(Rename, "[tid:%i] Squashing instructions due to squash from "
+                "rename.\n", tid);
+
+        squash(fromRename->renameInfo[tid].mispredictInst->seqNum, tid);
+        // printf("Squash rename!\n");
 
         return true;
     }
