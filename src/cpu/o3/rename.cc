@@ -767,7 +767,7 @@ Rename::renameInsts(ThreadID tid)
 
         if (inst->reconvergeValid()) {
             renameRcvg(inst, inst->threadNumber);
-            renameDestRegs(inst, inst->threadNumber);
+            // renameDestRegs(inst, inst->threadNumber);
         } else {
             renameSrcRegs(inst, inst->threadNumber);
             renameDestRegs(inst, inst->threadNumber);
@@ -1233,7 +1233,7 @@ Rename::renameSrcRegs(const DynInstPtr &inst, ThreadID tid)
 }
 
 void
-Rename::renameDestRegs(const DynInstPtr &inst, ThreadID tid)
+Rename::renameDestRegs(const DynInstPtr &inst, ThreadID tid, bool reuse)
 {
     gem5::ThreadContext *tc = inst->tcBase();
     UnifiedRenameMap *map = renameMap[tid];
@@ -1640,6 +1640,7 @@ Rename::gen_inst_info(DynInstPtr inst)
     inst_info.isExecuted = inst->isExecuted();
     inst_info.isMemRef   = inst->isMemRef();
     inst_info.isControl  = inst->isControl();
+    inst_info.isStore    = inst->isStore();
     inst_info.numSrcRegs = inst->numSrcRegs();
     inst_info.numDstRegs = inst->numDestRegs();
 

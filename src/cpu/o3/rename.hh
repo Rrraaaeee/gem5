@@ -255,7 +255,7 @@ class Rename : public ProbeListener
     void renameSrcRegs(const DynInstPtr &inst, ThreadID tid);
 
     /** Renames the destination registers of an instruction. */
-    void renameDestRegs(const DynInstPtr &inst, ThreadID tid);
+    void renameDestRegs(const DynInstPtr &inst, ThreadID tid, bool reuse=false);
 
     /** Calculates the number of free ROB entries for a specific thread. */
     int calcFreeROBEntries(ThreadID tid);
@@ -475,6 +475,7 @@ class Rename : public ProbeListener
         Addr pc;
         bool isExecuted;
         bool isMemRef;
+        bool isStore;
         bool isControl;
         uint8_t numSrcRegs;
         uint8_t numDstRegs;
