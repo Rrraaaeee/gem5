@@ -47,10 +47,10 @@ from m5.objects import *
 # specific instantiations.
 
 class L1Cache(Cache):
-    assoc = 2
-    tag_latency = 2
-    data_latency = 2
-    response_latency = 2
+    assoc = 4
+    tag_latency = 1
+    data_latency = 1
+    response_latency = 1
     mshrs = 4
     tgts_per_mshr = 20
 
