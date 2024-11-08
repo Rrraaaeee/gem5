@@ -195,7 +195,11 @@ Commit::CommitStats::CommitStats(CPU *cpu, Commit *commit)
       ADD_STAT(reconvergeBrWrong, statistics::units::Cycle::get(),
                "reconverge br early redirect wrongly"),
       ADD_STAT(reconvergeBrNeutral, statistics::units::Cycle::get(),
-               "reconverge br no redirection (both correct / wrong)")
+               "reconverge br no redirection (both correct / wrong)"),
+      ADD_STAT(reconvergeLdSuccess, statistics::units::Cycle::get(),
+               "reconverge ld success"),
+      ADD_STAT(reconvergeLdFail, statistics::units::Cycle::get(),
+               "reconverge ld fail")
 {
     using namespace statistics;
 
@@ -1084,6 +1088,33 @@ Commit::commitInsts()
                     } else {
                         // both pred correct / wrong
                         stats.reconvergeBrNeutral++;
+                    }
+                }
+
+                if (head_inst->reuse_ld_vld) {
+                    bool success = true;
+                    for (int i = 0 ; i < head_inst->numSrcRegs(); i++) {
+                        // printf("[Reuse] pc %lx src%d %lx == %lx %d\n", head_inst->pcState().instAddr(),
+                        // i, head_inst->src_reg_vals[i], head_inst->reuse_src_reg_vals[i],
+                        // head_inst->src_reg_vals[i] == head_inst->reuse_src_reg_vals[i]);
+                        if (head_inst->src_reg_vals[i] != head_inst->reuse_src_reg_vals[i]) {
+                            success = false;
+                            break;
+                        }
+                    }
+                    for (int i = 0 ; i < head_inst->numDestRegs(); i++) {
+                        // printf("[Reuse] pc %lx dst%d %lx == %lx %d\n", head_inst->pcState().instAddr(),
+                        // i, head_inst->dst_reg_vals[i], head_inst->reuse_dst_reg_vals[i],
+                        // head_inst->dst_reg_vals[i] == head_inst->reuse_dst_reg_vals[i]);
+                        if (head_inst->dst_reg_vals[i] != head_inst->reuse_dst_reg_vals[i]) {
+                            success = false;
+                            break;
+                        }
+                    }
+                    if (success)
+                        stats.reconvergeLdSuccess++;
+                    else {
+                        stats.reconvergeLdFail++;
                     }
                 }
 

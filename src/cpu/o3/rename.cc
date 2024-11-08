@@ -738,7 +738,7 @@ Rename::renameInsts(ThreadID tid)
 
         // Here we do the actual rename
         if (!reconverged) {
-            try_find_reconvergence(inst);
+            // try_find_reconvergence(inst);
         }
 
         if (reconverged) {
@@ -778,6 +778,17 @@ Rename::renameInsts(ThreadID tid)
                         early_redirect = true;
                     }
                 }
+
+                if (!src_poisoned && wpq_it->isExecuted && wpq_it->isMemRef && !wpq_it->isStore) {
+                    inst->reuse_ld_vld = true;
+                    for (int i = 0 ; i < wpq_it->numSrcRegs; i++) {
+                        inst->reuse_src_reg_vals[i] = wpq_it->srcRegInfo[i].val;
+                    }
+                    for (int i = 0 ; i < wpq_it->numDstRegs; i++) {
+                        inst->reuse_dst_reg_vals[i] = wpq_it->dstRegInfo[i].val;
+                    }
+                }
+
                 if (!early_redirect)
                     wpq_it ++;
             } else if (!diverged) {

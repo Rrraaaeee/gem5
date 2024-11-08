@@ -831,9 +831,12 @@ InstructionQueue::scheduleReadyInsts()
             }
             if (idx > FUPool::NoFreeFU) {
                 op_latency = fuPool->getOpLatency(op_class);
-                if (issuing_inst->isControl()) {
-                    op_latency += Cycles(3);
-                }
+                // if (issuing_inst->isControl()) {
+                    // op_latency += Cycles(3);
+                // }
+                // if (issuing_inst->isLoad() && issuing_inst->reuse_ld_vld) {
+                    // op_latency = Cycles(1);
+                // }
             }
         }
 

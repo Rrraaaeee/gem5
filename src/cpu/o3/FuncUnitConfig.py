@@ -43,7 +43,7 @@ from m5.params import *
 from m5.objects.FuncUnit import *
 
 class IntALU(FUDesc):
-    opList = [OpDesc(opClass="IntAlu", opLat=1)]
+    opList = [OpDesc(opClass="IntAlu", opLat=2)]
     count = 4
 
 class IntMultDiv(FUDesc):

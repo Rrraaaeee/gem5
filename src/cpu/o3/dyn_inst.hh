@@ -191,6 +191,7 @@ class DynInst : public ExecContext, public RefCounted
         ReconvergeMid,
         ReconvergeEnd,
         ReconvergeValid,
+        ReconvergeValid2,
         MaxFlags
     };
 
@@ -367,6 +368,8 @@ class DynInst : public ExecContext, public RefCounted
     bool reuse_br_vld = false;
     bool reuse_br_taken = false;
     Addr reuse_tpc = 0;
+
+    bool reuse_ld_vld = false;
 
     /////////////////////// TLB Miss //////////////////////
     /**

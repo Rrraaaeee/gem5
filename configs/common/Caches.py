@@ -51,8 +51,9 @@ class L1Cache(Cache):
     tag_latency = 1
     data_latency = 1
     response_latency = 1
-    mshrs = 4
+    mshrs = 12
     tgts_per_mshr = 20
+    size = '64kB'
 
 class L1_ICache(L1Cache):
     is_read_only = True
@@ -70,6 +71,7 @@ class L2Cache(Cache):
     mshrs = 20
     tgts_per_mshr = 12
     write_buffers = 8
+    size = '2MB'
 
 class IOCache(Cache):
     assoc = 8
