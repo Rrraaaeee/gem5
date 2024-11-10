@@ -92,7 +92,7 @@ class BaseO3CPU(BaseCPU):
     iewToDecodeDelay = Param.Cycles(1, "Issue/Execute/Writeback to decode "
                                     "delay")
     commitToDecodeDelay = Param.Cycles(1, "Commit to decode delay")
-    fetchToDecodeDelay = Param.Cycles(6, "Fetch to decode delay")
+    fetchToDecodeDelay = Param.Cycles(5, "Fetch to decode delay")
     decodeWidth = Param.Unsigned(8, "Decode width")
 
     iewToRenameDelay = Param.Cycles(1, "Issue/Execute/Writeback to rename "
@@ -103,7 +103,7 @@ class BaseO3CPU(BaseCPU):
 
     commitToIEWDelay = Param.Cycles(1, "Commit to "
                "Issue/Execute/Writeback delay")
-    renameToIEWDelay = Param.Cycles(2, "Rename to "
+    renameToIEWDelay = Param.Cycles(1, "Rename to "
                "Issue/Execute/Writeback delay")
     issueToExecuteDelay = Param.Cycles(1, "Issue to execute delay (internal "
               "to the IEW stage)")

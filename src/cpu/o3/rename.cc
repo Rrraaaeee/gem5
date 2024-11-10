@@ -738,7 +738,7 @@ Rename::renameInsts(ThreadID tid)
 
         // Here we do the actual rename
         if (!reconverged) {
-            // try_find_reconvergence(inst);
+            try_find_reconvergence(inst);
         }
 
         if (reconverged) {
@@ -1631,6 +1631,7 @@ Rename::notify(DynInstPtr inst)
 {
     if (( wrongPathQueue.empty()) ||
         (!wrongPathQueue.empty() && ((inst->seqNum + 1) != wrongPathQueue.front().seqNum))) {
+        // printf("Rcvg len: %ld\n", wrongPathQueue.size());
 
         // new squash stream
         // once we see a squash, reset poison
@@ -1733,13 +1734,16 @@ Rename::gen_inst_info(DynInstPtr inst)
 void Rename::try_find_reconvergence(const DynInstPtr& inst)
 {
     // search reconvergence
+    int l=0;
     for (auto it = wrongPathQueue.begin() ; it != wrongPathQueue.end(); it++) {
+        l++;
         if (inst->pcState().instAddr() == it->pc) {
             DPRINTF(Rcvg, "[Sn:%ld] Rename found start pc %lx\n", inst->seqNum, it->pc);
             reconverged = true;
             receive_squash=false; // after finding reconvergence, stop receiving squash
             diverged = false;
             wpq_it = it;
+            // printf("Rcvg len2: %ld\n", l);
             break;
         }
     }
