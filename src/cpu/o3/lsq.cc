@@ -217,6 +217,15 @@ LSQ::cachePortBusy(bool is_load)
     }
 }
 
+bool
+LSQ::hitPastStore(const DynInstPtr &load_inst)
+{
+    ThreadID tid = load_inst->threadNumber;
+
+    return thread[tid].hitPastStore(load_inst);
+}
+
+
 void
 LSQ::insertLoad(const DynInstPtr &load_inst)
 {

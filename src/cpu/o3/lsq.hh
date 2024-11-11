@@ -682,6 +682,7 @@ class LSQ
     /** Ticks the LSQ. */
     void tick();
 
+    bool hitPastStore(const DynInstPtr &inst);
     /** Inserts a load into the LSQ. */
     void insertLoad(const DynInstPtr &load_inst);
     /** Inserts a store into the LSQ. */

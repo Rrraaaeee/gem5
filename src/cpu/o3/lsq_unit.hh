@@ -245,6 +245,8 @@ class LSQUnit
     /** Inserts a store instruction. */
     void insertStore(const DynInstPtr &store_inst);
 
+    bool hitPastStore(const DynInstPtr &load_inst);
+
     /** Check for ordering violations in the LSQ. For a store squash if we
      * ever find a conflicting load. For a load, only squash if we
      * an external snoop invalidate has been seen for that load address
@@ -505,6 +507,13 @@ class LSQUnit
 
     /** Flag for memory model. */
     bool needsTSO;
+    
+    struct StoreInfo {
+        Addr addr;
+        uint32_t size;
+        uint64_t val;
+    };
+    std::deque<StoreInfo> last_wr;
 
   protected:
     // Will also need how many read/write ports the Dcache has.  Or keep track

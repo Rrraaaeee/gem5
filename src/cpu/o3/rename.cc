@@ -738,7 +738,7 @@ Rename::renameInsts(ThreadID tid)
 
         // Here we do the actual rename
         if (!reconverged) {
-            // try_find_reconvergence(inst);
+            try_find_reconvergence(inst);
         }
 
         if (reconverged) {
@@ -756,6 +756,21 @@ Rename::renameInsts(ThreadID tid)
                     for (int i = 0 ; i < wpq_it->numDstRegs; i++) {
                         inst->reuse_dst_reg_vals[i] = wpq_it->dstRegInfo[i].val;
                     }
+
+                    if (inst->isLoad()) {
+                        inst->reuse_effAddr = wpq_it->mem_addr;
+                        inst->reuse_effSize = wpq_it->mem_size;
+                    }
+
+                    // if (wpq_it->isLoad && store_forward_tbl.find(wpq_it->mem_addr) != store_forward_tbl.end()) {
+                        // uint8_t sz = store_forward_tbl[wpq_it->mem_addr].size;
+                        // uint64_t dat = store_forward_tbl[wpq_it->mem_addr].dat;
+                        // if (sz == wpq_it->mem_size){
+                            // inst->reuse_dst_reg_vals[0] = dat;
+                        // } else {
+                            // inst->reconvergeValid(false);
+                        // }
+                    // }
                 }
 
                 // if (!src_poisoned && wpq_it->isExecuted && wpq_it->isControl) {
@@ -806,17 +821,6 @@ Rename::renameInsts(ThreadID tid)
                     assert(wpq_it->numDstRegs==1);
                     inst->reuse_dst_reg_vals[0] = wpq_it->dstRegInfo[0].val;
                     // printf("store forward tbl size %d\n", store_forward_tbl.size());
-                    // if (store_forward_tbl.find(wpq_it->mem_addr) != store_forward_tbl.end()) {
-                        // uint8_t sz = store_forward_tbl[wpq_it->mem_addr].size;
-                        // uint64_t dat = store_forward_tbl[wpq_it->mem_addr].dat;
-                        // if (sz == wpq_it->mem_size){
-                            // inst->reuse_dst_reg_vals[0] = dat;
-                        // } else {
-                            // inst->reuse_ld_vld = false;
-                        // }
-                    // } else {
-                        // inst->reuse_dst_reg_vals[0] = wpq_it->dstRegInfo[0].val;
-                    // }
                 }
 
                 if (!early_redirect)
@@ -1666,7 +1670,7 @@ Rename::notify(DynInstPtr inst)
         // once we see a squash, reset poison
         memset(poison_set, 0, 128*sizeof(int));
         wrongPathQueue.clear();
-        store_forward_tbl.clear();
+        // store_forward_tbl.clear();
         reconverged=false;
         diverged=false;
         // for (const auto& p : delayed_phy_list) {

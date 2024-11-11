@@ -1016,6 +1016,15 @@ IEW::dispatchInsts(ThreadID tid)
             add_to_iq = true;
 
             toRename->iewInfo[tid].dispatchedToLQ++;
+
+            // here we check if any past stores hit the reconverged load address
+            // if so, mark load as cancelled and trigger nuke flush as load is executed
+
+            // if (inst->reconvergeValid() && ldstQueue.hitPastStore(inst)) {
+                // inst->memViolated(true);
+                // squashDueToMemOrder(inst, tid);
+            // }
+
         } else if (inst->isStore()) {
             DPRINTF(IEW, "[tid:%i] Issue: Memory instruction "
                     "encountered, adding to LSQ.\n", tid);
@@ -1456,6 +1465,20 @@ IEW::tick()
 
         checkSignalsAndUpdate(tid);
         dispatch(tid);
+    }
+
+    for (int inst_num = 0; inst_num < wbWidth &&
+             toCommit->insts[inst_num]; inst_num++) {
+        DynInstPtr inst = toCommit->insts[inst_num];
+        ThreadID tid = inst->threadNumber;
+        if (inst->reconvergeValid() && inst->isLoad()) {
+
+            if (inst->reuse_dst_reg_vals[0] != inst->dst_reg_vals[0]) {
+                inst->memViolated(true);
+                squashDueToMemOrder(inst, tid);
+                break;
+            }
+        }
     }
 
     if (exeStatus != Squashing) {

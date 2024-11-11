@@ -338,6 +338,7 @@ class DynInst : public ExecContext, public RefCounted
     /////////////////////// Load Store Data //////////////////////
     /** The effective virtual address (lds & stores only). */
     Addr effAddr = 0;
+    Addr reuse_effAddr = 0;
 
     /** The effective physical address. */
     Addr physEffAddr = 0;
@@ -347,6 +348,7 @@ class DynInst : public ExecContext, public RefCounted
 
     /** The size of the request */
     unsigned effSize;
+    unsigned reuse_effSize;
 
     /** Pointer to the data for the memory access. */
     uint8_t *memData = nullptr;

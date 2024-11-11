@@ -316,6 +316,25 @@ LSQUnit::insert(const DynInstPtr &inst)
     inst->setInLSQ();
 }
 
+bool
+LSQUnit::hitPastStore(const DynInstPtr &load_inst)
+{
+    Addr inst_eff_addr1 = load_inst->reuse_effAddr;
+    Addr inst_eff_addr2 = (load_inst->reuse_effAddr + load_inst->reuse_effSize - 1);
+    Addr inst_val = load_inst->reuse_dst_reg_vals[0];
+    for (const auto& p : last_wr) {
+        Addr st_eff_addr1 = p.addr;
+        Addr st_eff_addr2 = p.addr + p.size - 1;
+        Addr st_val = p.val;
+        if (inst_eff_addr1 == st_eff_addr1 && inst_eff_addr2 == st_eff_addr2 && inst_val == st_val) {
+            continue;
+        } else if (inst_eff_addr2 >= st_eff_addr1 && inst_eff_addr1 <= st_eff_addr2) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void
 LSQUnit::insertLoad(const DynInstPtr &load_inst)
 {
@@ -589,6 +608,8 @@ LSQUnit::checkViolations(typename LoadQueue::iterator& loadIt,
 
         ++loadIt;
     }
+
+
     return fault;
 }
 
@@ -727,6 +748,14 @@ LSQUnit::executeStore(const DynInstPtr &store_inst)
 
     for (int i = 0 ; i < store_inst->numDestRegs() ; i++) {
         store_inst->dst_reg_vals[i] = store_inst->getDestRegOperand(&(*(store_inst->staticInst)), i);
+    }
+
+    // track last 32 writes for inflight reconvergent load
+    if (last_wr.size() < 4) {
+        last_wr.push_back({.addr=store_inst->effAddr, .size=store_inst->effSize, .val=store_inst->src_reg_vals[1]});
+    } else {
+        last_wr.pop_front();
+        last_wr.push_back({.addr=store_inst->effAddr, .size=store_inst->effSize, .val=store_inst->src_reg_vals[1]});
     }
 
     return checkViolations(loadIt, store_inst);
