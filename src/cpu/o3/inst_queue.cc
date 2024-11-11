@@ -817,10 +817,9 @@ InstructionQueue::scheduleReadyInsts()
 
         if (issuing_inst->reconvergeValid()) {
             idx = FUPool::NoCapableFU;
-            i2e_info->size++;
-            instsToExecute.push_back(issuing_inst);
+            // i2e_info->size++;
+            // instsToExecute.push_back(issuing_inst);
         } else if (op_class != No_OpClass) {
-        // if (op_class != No_OpClass) {
             idx = fuPool->getUnit(op_class);
             if (issuing_inst->isFloating()) {
                 iqIOStats.fpAluAccesses++;

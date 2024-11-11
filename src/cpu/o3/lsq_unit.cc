@@ -519,9 +519,11 @@ LSQUnit::checkViolations(typename LoadQueue::iterator& loadIt,
      * all instructions that will execute before the store writes back. Thus,
      * like the implementation that came before it, we're overly conservative.
      */
+    Fault fault = NoFault;
+
     while (loadIt != loadQueue.end()) {
         DynInstPtr ld_inst = loadIt->instruction();
-        if (!ld_inst->effAddrValid() || ld_inst->strictlyOrdered()) {
+        if ((!ld_inst->effAddrValid() || ld_inst->strictlyOrdered()) && !ld_inst->reconvergeValid()) {
             ++loadIt;
             continue;
         }
@@ -558,7 +560,7 @@ LSQUnit::checkViolations(typename LoadQueue::iterator& loadIt,
                 DPRINTF(LSQUnit, "Found possible load violation at addr: %#x"
                         " between instructions [sn:%lli] and [sn:%lli]\n",
                         inst_eff_addr1, inst->seqNum, ld_inst->seqNum);
-            } else {
+            } else if (fault==NoFault) {
                 // A load/store incorrectly passed this store.
                 // Check if we already have a violator, or if it's newer
                 // squash and refetch.
@@ -569,19 +571,25 @@ LSQUnit::checkViolations(typename LoadQueue::iterator& loadIt,
                         "[sn:%lli] at address %#x\n",
                         inst->seqNum, ld_inst->seqNum, ld_eff_addr1);
                 memDepViolator = ld_inst;
+                ld_inst->memViolated(true);
 
                 ++stats.memOrderViolation;
 
-                return std::make_shared<GenericISA::M5PanicFault>(
+                fault = std::make_shared<GenericISA::M5PanicFault>(
                     "Detected fault with "
                     "inst [sn:%lli] and [sn:%lli] at address %#x\n",
                     inst->seqNum, ld_inst->seqNum, ld_eff_addr1);
+            } else {
+                DPRINTF(LSQUnit, "Detected fault with inst [sn:%lli] and "
+                        "[sn:%lli] at address %#x\n",
+                        inst->seqNum, ld_inst->seqNum, ld_eff_addr1);
+                ld_inst->memViolated(true);
             }
         }
 
         ++loadIt;
     }
-    return NoFault;
+    return fault;
 }
 
 
@@ -710,6 +718,15 @@ LSQUnit::executeStore(const DynInstPtr &store_inst)
         storeQueue[store_idx].canWB() = true;
 
         ++storesToWB;
+    }
+
+
+    for (int i = 0 ; i < store_inst->numSrcRegs(); i++) {
+        store_inst->src_reg_vals[i] = store_inst->getRegOperand(&(*(store_inst->staticInst)), i);
+    }
+
+    for (int i = 0 ; i < store_inst->numDestRegs() ; i++) {
+        store_inst->dst_reg_vals[i] = store_inst->getDestRegOperand(&(*(store_inst->staticInst)), i);
     }
 
     return checkViolations(loadIt, store_inst);
@@ -1131,6 +1148,15 @@ LSQUnit::writeback(const DynInstPtr &inst, PacketPtr pkt)
 
     // see if this load changed the PC
     iewStage->checkMisprediction(inst);
+
+    for (int i = 0 ; i < inst->numSrcRegs(); i++) {
+        inst->src_reg_vals[i] = inst->getRegOperand(&(*(inst->staticInst)), i);
+    }
+
+    for (int i = 0 ; i < inst->numDestRegs() ; i++) {
+        inst->dst_reg_vals[i] = inst->getDestRegOperand(&(*(inst->staticInst)), i);
+    }
+
 }
 
 void

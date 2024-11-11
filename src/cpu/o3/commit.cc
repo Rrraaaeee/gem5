@@ -1033,6 +1033,85 @@ Commit::commitInsts()
         } else {
             set(pc[tid], head_inst->pcState());
 
+            // reconvergence
+            if (head_inst->reconvergeValid()) {
+                bool success = true;
+                for (int i = 0 ; i < head_inst->numSrcRegs(); i++) {
+                    // printf("[Reuse] pc %lx src%d %lx == %lx %d\n", head_inst->pcState().instAddr(),
+                    // i, head_inst->src_reg_vals[i], head_inst->reuse_src_reg_vals[i],
+                    // head_inst->src_reg_vals[i] == head_inst->reuse_src_reg_vals[i]);
+                    if (head_inst->src_reg_vals[i] != head_inst->reuse_src_reg_vals[i]) {
+                        DPRINTF(RcvgRename, "[Reuse][Seq: %ld] pc %lx failed due to src%d mismatch! wrong: %lx correct %lx\n",
+                                head_inst->seqNum, head_inst->pcState().instAddr(), i, head_inst->reuse_src_reg_vals[i], head_inst->src_reg_vals[i]);
+                        success = false;
+                        break;
+                    }
+                }
+                for (int i = 0 ; i < head_inst->numDestRegs(); i++) {
+                    // printf("[Reuse] pc %lx dst%d %lx == %lx %d\n", head_inst->pcState().instAddr(),
+                    // i, head_inst->dst_reg_vals[i], head_inst->reuse_dst_reg_vals[i],
+                    // head_inst->dst_reg_vals[i] == head_inst->reuse_dst_reg_vals[i]);
+                    if (head_inst->dst_reg_vals[i] != head_inst->reuse_dst_reg_vals[i]) {
+                        DPRINTF(RcvgRename, "[Reuse][Seq: %ld] pc %lx failed due to dst%d mismatch! wrong: %lx correct %lx\n",
+                                head_inst->seqNum, head_inst->pcState().instAddr(), i, head_inst->reuse_dst_reg_vals[i], head_inst->dst_reg_vals[i]);
+                        success = false;
+                        break;
+                    }
+                }
+                if (success)
+                    stats.reconvergeSuccess++;
+                else {
+                    DPRINTF(RcvgRename, "[Reuse][Seq: %ld] pc %lx failed!\n", head_inst->seqNum, head_inst->pcState().instAddr());
+                    stats.reconvergeFail++;
+                }
+            }
+
+            if (head_inst->reuse_br_vld) {
+                if (head_inst->reuse_br_taken != head_inst->readPredTaken() ||
+                    head_inst->reuse_tpc != head_inst->readPredTarg().instAddr()) {
+                    if (head_inst->mispredicted() && head_inst->reuse_tpc == head_inst->corr_tpc()) {
+                        stats.reconvergeBrCorrect++;
+                    } else if (head_inst->mispredicted()) {
+                        // both mispred
+                        stats.reconvergeBrNeutral++;
+                    } else {
+                        stats.reconvergeBrWrong++;
+                    }
+                } else {
+                    // both pred correct / wrong
+                    stats.reconvergeBrNeutral++;
+                }
+            }
+
+            if (head_inst->reuse_ld_vld) {
+                bool success = true;
+                for (int i = 0 ; i < head_inst->numSrcRegs(); i++) {
+                    // printf("[Reuse] pc %lx src%d %lx == %lx %d\n", head_inst->pcState().instAddr(),
+                    // i, head_inst->src_reg_vals[i], head_inst->reuse_src_reg_vals[i],
+                    // head_inst->src_reg_vals[i] == head_inst->reuse_src_reg_vals[i]);
+                    if (head_inst->src_reg_vals[i] != head_inst->reuse_src_reg_vals[i]) {
+                        success = false;
+                        break;
+                    }
+                }
+                for (int i = 0 ; i < head_inst->numDestRegs(); i++) {
+                    // printf("[Reuse] pc %lx dst%d %lx == %lx %d\n", head_inst->pcState().instAddr(),
+                    // i, head_inst->dst_reg_vals[i], head_inst->reuse_dst_reg_vals[i],
+                    // head_inst->dst_reg_vals[i] == head_inst->reuse_dst_reg_vals[i]);
+                    if (head_inst->dst_reg_vals[i] != head_inst->reuse_dst_reg_vals[i]) {
+                        success = false;
+                        break;
+                    }
+                }
+                if (success) {
+                    head_inst->reuse_ld_failed = false;
+                    stats.reconvergeLdSuccess++;
+                } else {
+                    head_inst->reuse_ld_failed = true;
+                    stats.reconvergeLdFail++;
+                }
+            }
+
             // Try to commit the head instruction.
             bool commit_success = commitHead(head_inst, num_committed);
 
@@ -1040,83 +1119,6 @@ Commit::commitInsts()
                 ++num_committed;
                 stats.committedInstType[tid][head_inst->opClass()]++;
                 ppCommit->notify(head_inst);
-
-                // reconvergence
-                if (head_inst->reconvergeValid()) {
-                    bool success = true;
-                    for (int i = 0 ; i < head_inst->numSrcRegs(); i++) {
-                        // printf("[Reuse] pc %lx src%d %lx == %lx %d\n", head_inst->pcState().instAddr(),
-                        // i, head_inst->src_reg_vals[i], head_inst->reuse_src_reg_vals[i],
-                        // head_inst->src_reg_vals[i] == head_inst->reuse_src_reg_vals[i]);
-                        if (head_inst->src_reg_vals[i] != head_inst->reuse_src_reg_vals[i]) {
-                            DPRINTF(RcvgRename, "[Reuse][Seq: %ld] pc %lx failed due to src%d mismatch! wrong: %lx correct %lx\n",
-                                    head_inst->seqNum, head_inst->pcState().instAddr(), i, head_inst->reuse_src_reg_vals[i], head_inst->src_reg_vals[i]);
-                            success = false;
-                            break;
-                        }
-                    }
-                    for (int i = 0 ; i < head_inst->numDestRegs(); i++) {
-                        // printf("[Reuse] pc %lx dst%d %lx == %lx %d\n", head_inst->pcState().instAddr(),
-                        // i, head_inst->dst_reg_vals[i], head_inst->reuse_dst_reg_vals[i],
-                        // head_inst->dst_reg_vals[i] == head_inst->reuse_dst_reg_vals[i]);
-                        if (head_inst->dst_reg_vals[i] != head_inst->reuse_dst_reg_vals[i]) {
-                            DPRINTF(RcvgRename, "[Reuse][Seq: %ld] pc %lx failed due to dst%d mismatch! wrong: %lx correct %lx\n",
-                                    head_inst->seqNum, head_inst->pcState().instAddr(), i, head_inst->reuse_dst_reg_vals[i], head_inst->dst_reg_vals[i]);
-                            success = false;
-                            break;
-                        }
-                    }
-                    if (success)
-                        stats.reconvergeSuccess++;
-                    else {
-                        DPRINTF(RcvgRename, "[Reuse][Seq: %ld] pc %lx failed!\n", head_inst->seqNum, head_inst->pcState().instAddr());
-                        stats.reconvergeFail++;
-                    }
-                }
-
-                if (head_inst->reuse_br_vld) {
-                    if (head_inst->reuse_br_taken != head_inst->readPredTaken() ||
-                        head_inst->reuse_tpc != head_inst->readPredTarg().instAddr()) {
-                        if (head_inst->mispredicted() && head_inst->reuse_tpc == head_inst->corr_tpc()) {
-                            stats.reconvergeBrCorrect++;
-                        } else if (head_inst->mispredicted()) {
-                            // both mispred
-                            stats.reconvergeBrNeutral++;
-                        } else {
-                            stats.reconvergeBrWrong++;
-                        }
-                    } else {
-                        // both pred correct / wrong
-                        stats.reconvergeBrNeutral++;
-                    }
-                }
-
-                if (head_inst->reuse_ld_vld) {
-                    bool success = true;
-                    for (int i = 0 ; i < head_inst->numSrcRegs(); i++) {
-                        // printf("[Reuse] pc %lx src%d %lx == %lx %d\n", head_inst->pcState().instAddr(),
-                        // i, head_inst->src_reg_vals[i], head_inst->reuse_src_reg_vals[i],
-                        // head_inst->src_reg_vals[i] == head_inst->reuse_src_reg_vals[i]);
-                        if (head_inst->src_reg_vals[i] != head_inst->reuse_src_reg_vals[i]) {
-                            success = false;
-                            break;
-                        }
-                    }
-                    for (int i = 0 ; i < head_inst->numDestRegs(); i++) {
-                        // printf("[Reuse] pc %lx dst%d %lx == %lx %d\n", head_inst->pcState().instAddr(),
-                        // i, head_inst->dst_reg_vals[i], head_inst->reuse_dst_reg_vals[i],
-                        // head_inst->dst_reg_vals[i] == head_inst->reuse_dst_reg_vals[i]);
-                        if (head_inst->dst_reg_vals[i] != head_inst->reuse_dst_reg_vals[i]) {
-                            success = false;
-                            break;
-                        }
-                    }
-                    if (success)
-                        stats.reconvergeLdSuccess++;
-                    else {
-                        stats.reconvergeLdFail++;
-                    }
-                }
 
                 // hardware transactional memory
 

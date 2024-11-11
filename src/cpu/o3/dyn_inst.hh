@@ -191,7 +191,7 @@ class DynInst : public ExecContext, public RefCounted
         ReconvergeMid,
         ReconvergeEnd,
         ReconvergeValid,
-        ReconvergeValid2,
+        MemViolated,
         MaxFlags
     };
 
@@ -409,6 +409,9 @@ class DynInst : public ExecContext, public RefCounted
 
     bool reconvergeValid() const { return instFlags[ReconvergeValid]; }
     void reconvergeValid(bool b) { instFlags[ReconvergeValid] = b; }
+
+    bool memViolated() const { return instFlags[MemViolated]; }
+    void memViolated(bool b) { instFlags[MemViolated] = b; }
 
     ////////////////////////////////////////////
     //

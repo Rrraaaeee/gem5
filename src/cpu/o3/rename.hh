@@ -480,6 +480,8 @@ class Rename : public ProbeListener
         bool isExecuted;
         bool isMemRef;
         bool isStore;
+        bool isLoad;
+        bool isViolation;
         bool isControl;
         uint8_t numSrcRegs;
         uint8_t numDstRegs;
@@ -490,14 +492,26 @@ class Rename : public ProbeListener
         bool br_taken;
         bool mispred;
         Addr tpc;
+
+        bool squash_foward;
+        Addr mem_addr;
+        uint8_t mem_size;
+    };
+
+    struct MemInfo {
+        InstSeqNum seqNum;
+        uint8_t size;
+        uint64_t  dat;
     };
 
     void try_find_reconvergence(const DynInstPtr& inst);
     void update_poison_set(const InstInfo& inst, int pset[], bool reconvergd);
     bool src_are_poisoned(const DynInstPtr& inst);
+    void try_store_forward(const DynInstPtr& inst);
 
     InstInfo gen_inst_info(DynInstPtr inst);
     std::unordered_map<InstSeqNum, PhysRegIdPtr> delayed_phy_list;
+    std::unordered_map<Addr, MemInfo> store_forward_tbl;
     std::deque<InstInfo> wrongPathQueue;
     std::deque<InstInfo>::iterator wpq_it;
     int poison_set[128];

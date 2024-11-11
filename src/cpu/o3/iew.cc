@@ -1160,8 +1160,8 @@ IEW::executeInsts()
 
         DynInstPtr inst = instQueue.getInstToExecute();
 
-        DPRINTF(IEW, "Execute: Processing PC %s, [tid:%i] [sn:%llu].\n",
-                inst->pcState(), inst->threadNumber,inst->seqNum);
+        DPRINTF(IEW, "Execute: Processing PC %s, [tid:%i] [sn:%llu]. instnum: %d\n",
+                inst->pcState(), inst->threadNumber,inst->seqNum, inst_num);
 
         // Notify potential listeners that this instruction has started
         // executing
@@ -1229,6 +1229,7 @@ IEW::executeInsts()
                 }
             } else if (inst->isStore()) {
                 fault = ldstQueue.executeStore(inst);
+                cpu->rename.try_store_forward(inst);
 
                 if (inst->isTranslationDelayed() &&
                     fault == NoFault) {
