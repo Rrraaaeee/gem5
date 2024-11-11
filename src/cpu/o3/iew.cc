@@ -1238,7 +1238,7 @@ IEW::executeInsts()
                 }
             } else if (inst->isStore()) {
                 fault = ldstQueue.executeStore(inst);
-                cpu->rename.try_store_forward(inst);
+                // cpu->rename.try_store_forward(inst);
 
                 if (inst->isTranslationDelayed() &&
                     fault == NoFault) {
