@@ -1384,6 +1384,8 @@ Commit::commitHead(const DynInstPtr &head_inst, unsigned inst_num)
         head_inst->traceData->setFetchSeq(head_inst->seqNum);
         head_inst->traceData->setCPSeq(thread[tid]->numOp);
         head_inst->traceData->setSeqNum(head_inst->seqNum);
+        head_inst->traceData->setReuseLdVld(head_inst->reuse_ld_vld);
+        head_inst->traceData->setReuseLdSuccess(!head_inst->reuse_ld_failed);
         head_inst->traceData->setReconverged(head_inst->reconvergeValid());
         head_inst->traceData->dump();
 

@@ -370,6 +370,7 @@ class DynInst : public ExecContext, public RefCounted
     Addr reuse_tpc = 0;
 
     bool reuse_ld_vld = false;
+    bool reuse_ld_failed = false;
 
     /////////////////////// TLB Miss //////////////////////
     /**

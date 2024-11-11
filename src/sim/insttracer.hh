@@ -159,6 +159,8 @@ class InstRecord
     bool branch_taken = false;
     Addr branch_target = 0;
     InstSeqNum seqNum = 0;
+    bool reuse_ld_vld = false;
+    bool reuse_ld_success = false;
     bool reconverged = 0;
 
   public:
@@ -275,6 +277,9 @@ class InstRecord
     void setBranchTarget(Addr tpc) { branch_target = tpc; }
 
     void setSeqNum(InstSeqNum seq) { seqNum = seq; }
+
+    void setReuseLdVld(bool b) { reuse_ld_vld = b; }
+    void setReuseLdSuccess(bool b) { reuse_ld_success = b; }
 
     void setReconverged(bool b) { reconverged = b; }
 

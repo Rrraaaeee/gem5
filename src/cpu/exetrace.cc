@@ -128,6 +128,10 @@ Trace::ExeTracerRecord::traceInst(const StaticInstPtr &inst, bool ran)
             outs << " Rcvg=" << reconverged;
         }
 
+        if (debug::ExecResult) {
+            outs << " RcvgLd=" << reuse_ld_vld;
+            outs << " RcvgLdSucc=" << reuse_ld_success;
+        }
 
         if (debug::ExecResult && data_status != DataInvalid) {
             switch (data_status) {
