@@ -504,21 +504,27 @@ class Rename : public ProbeListener
         uint64_t  dat;
     };
 
-    void try_find_reconvergence(const DynInstPtr& inst);
     void update_poison_set(const InstInfo& inst, int pset[], bool reconvergd);
-    bool src_are_poisoned(const DynInstPtr& inst);
+    bool src_are_poisoned(const DynInstPtr& inst, int wpq_idx);
+    int try_find_reconvergence(const DynInstPtr& inst);
     void try_store_forward(const DynInstPtr& inst);
 
     InstInfo gen_inst_info(DynInstPtr inst);
     std::unordered_map<InstSeqNum, PhysRegIdPtr> delayed_phy_list;
     std::unordered_map<Addr, MemInfo> store_forward_tbl;
-    std::deque<InstInfo> wrongPathQueue;
-    std::deque<InstInfo>::iterator wpq_it;
-    int poison_set[128];
-    bool reconverged;
-    bool diverged;
-    bool receive_squash;
-    bool receive_squash_done;
+
+    struct WrongPathQueueCtx {
+        std::deque<InstInfo> wrongPathQueue;
+        std::deque<InstInfo>::iterator wpq_it;
+        int poison_set[128];
+        bool reconverged;
+        bool diverged;
+    };
+    std::vector<WrongPathQueueCtx> wpq_ctx;
+    int wpq_ctx_size = 4;
+    int wpq_curr_idx = 0;
+    bool reconverged = false;
+    int reconverged_wpq_idx = 0;
 
     /** Enum to record the source of a structure full stall.  Can come from
      * either ROB, IQ, LSQ, and it is priortized in that order.

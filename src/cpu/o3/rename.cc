@@ -63,10 +63,6 @@ namespace o3
 Rename::Rename(CPU *_cpu, const BaseO3CPUParams &params)
     : ProbeListener(_cpu->getProbeManager(), "ren"),
       cpu(_cpu),
-      reconverged(false),
-      diverged(false),
-      receive_squash(false),
-      receive_squash_done(false),
       iewToRenameDelay(params.iewToRenameDelay),
       decodeToRenameDelay(params.decodeToRenameDelay),
       commitToRenameDelay(params.commitToRenameDelay),
@@ -94,7 +90,12 @@ Rename::Rename(CPU *_cpu, const BaseO3CPUParams &params)
         serializeOnNextInst[tid] = false;
     }
 
-    memset(poison_set, 0, 128*sizeof(int));
+    wpq_ctx.resize(wpq_ctx_size);
+    for (int i = 0 ; i < wpq_ctx_size ; i ++) {
+        wpq_ctx[i].reconverged = false;
+        wpq_ctx[i].diverged = false;
+        memset(wpq_ctx[i].poison_set, 0, 128*sizeof(int));
+    }
 }
 
 std::string
@@ -738,18 +739,24 @@ Rename::renameInsts(ThreadID tid)
 
         // Here we do the actual rename
         if (!reconverged) {
-            try_find_reconvergence(inst);
+            // reconverged_wpq_idx = -1;
+            reconverged_wpq_idx = try_find_reconvergence(inst);
+            reconverged = (reconverged_wpq_idx != -1);
         }
 
         if (reconverged) {
-            if (wpq_it != wrongPathQueue.end() && wpq_it->pc == inst->pcState().instAddr()) {
-                bool src_poisoned = src_are_poisoned(inst);
+            assert(reconverged_wpq_idx < wpq_ctx_size);
+            auto& wpq = wpq_ctx[reconverged_wpq_idx].wrongPathQueue;
+            auto& wpq_it = wpq_ctx[reconverged_wpq_idx].wpq_it;
+            if (wpq_it != wpq.end() && wpq_it->pc == inst->pcState().instAddr()) {
+                bool src_poisoned = src_are_poisoned(inst, reconverged_wpq_idx);
                 if (!src_poisoned && wpq_it->isExecuted && !(wpq_it->isMemRef && !wpq_it->isLoad) && !wpq_it->isViolation && !wpq_it->isControl) {
                 // if (!src_poisoned && wpq_it->isExecuted && !wpq_it->isMemRef && !wpq_it->isControl) {
                     DPRINTF(RcvgRename, "[Rcvg][Seq %ld] Reconverge pc %lx\n", inst->seqNum, inst->pcState().instAddr());
                     DPRINTF(Rcvg, "[Seq %ld] Reconverge pc %lx is CIDI\n", wpq_it->seqNum, inst->pcState().instAddr());
-                    // inst->reconvergeValid(true);
+
                     inst->reconvergeValid(true);
+
                     for (int i = 0 ; i < wpq_it->numSrcRegs; i++) {
                         inst->reuse_src_reg_vals[i] = wpq_it->srcRegInfo[i].val;
                     }
@@ -761,57 +768,7 @@ Rename::renameInsts(ThreadID tid)
                         inst->reuse_effAddr = wpq_it->mem_addr;
                         inst->reuse_effSize = wpq_it->mem_size;
                     }
-
-                    // if (wpq_it->isLoad && store_forward_tbl.find(wpq_it->mem_addr) != store_forward_tbl.end()) {
-                        // uint8_t sz = store_forward_tbl[wpq_it->mem_addr].size;
-                        // uint64_t dat = store_forward_tbl[wpq_it->mem_addr].dat;
-                        // if (sz == wpq_it->mem_size){
-                            // inst->reuse_dst_reg_vals[0] = dat;
-                        // } else {
-                            // inst->reconvergeValid(false);
-                        // }
-                    // }
                 }
-
-                // if (!src_poisoned && wpq_it->isExecuted && wpq_it->isControl) {
-                    // if (wpq_it->br_taken != inst->readPredTaken() ||
-                        // wpq_it->tpc != inst->readPredTarg().instAddr()) {
-                        // inst->reuse_br_vld = true;
-                        // inst->reuse_br_taken = wpq_it->br_taken;
-                        // inst->reuse_tpc = wpq_it->tpc;
-
-                        // toFetch->renameInfo[tid].squash = true;
-                        // toFetch->renameInfo[tid].mispredictInst = inst;
-                        // toFetch->renameInfo[tid].branchTaken = wpq_it->br_taken;
-                        // std::unique_ptr<PCStateBase> nextPC(cpu->newPCState(wpq_it->tpc));
-                        // inst->setPredTaken(wpq_it->br_taken);
-                        // inst->setPredTarg(*(nextPC->clone()));
-                        // set(toFetch->renameInfo[tid].nextPC, nextPC);
-
-                        // wpq_it = wrongPathQueue.end();
-                        // diverged = true;
-
-                        // early_redirect = true;
-                    // }
-                // }
-
-                // if (!src_poisoned && wpq_it->isExecuted && wpq_it->isStore) {
-                    // Addr st_addr = wpq_it->mem_addr;
-                    // Addr st_size = wpq_it->mem_size;
-                    // int idx = wpq_it - wrongPathQueue.begin();
-                    // for (; idx < wrongPathQueue.size() ; idx++) {
-                        // auto it2 = wrongPathQueue.begin() + idx;
-                        // if (it2->isExecuted && it2->mem_addr == st_addr &&
-                            // it2->mem_size == st_size && it2->isLoad) {
-                            // // printf("Intra fwd! [st seq/pc: %lld/%lx][ld seq/pc: %lld/%lx] addr %lx val old->new %lx -> %lx\n", wpq_it->seqNum, wpq_it->pc, it2->seqNum, it2->pc, st_addr, it2->dstRegInfo[0].val, wpq_it->srcRegInfo[1].val);
-                            // if (it2->dstRegInfo[0].val != wpq_it->srcRegInfo[1].val) {
-                                // printf("Intra fwd!\n");
-                            // }
-                            // it2->dstRegInfo[0].val = wpq_it->srcRegInfo[1].val;
-                            // it2->squash_foward = true;
-                        // }
-                    // }
-                // }
 
                 if (!src_poisoned && wpq_it->isExecuted && wpq_it->isLoad) {
                     inst->reuse_ld_vld = true;
@@ -820,20 +777,22 @@ Rename::renameInsts(ThreadID tid)
                     }
                     assert(wpq_it->numDstRegs==1);
                     inst->reuse_dst_reg_vals[0] = wpq_it->dstRegInfo[0].val;
-                    // printf("store forward tbl size %d\n", store_forward_tbl.size());
                 }
 
                 if (!early_redirect)
                     wpq_it ++;
-            } else if (!diverged) {
-                wpq_it = wrongPathQueue.end();
-                diverged = true;
+            } else if (!wpq_ctx[reconverged_wpq_idx].diverged) {
+                wpq_ctx[reconverged_wpq_idx].diverged = true;
+                // we cannot reuse this stream.
+                wpq_ctx[reconverged_wpq_idx].wrongPathQueue.clear();
+                wpq_ctx[reconverged_wpq_idx].wpq_it = wpq_ctx[reconverged_wpq_idx].wrongPathQueue.begin();
+                reconverged = false;
+                reconverged_wpq_idx = -1;
             }
         }
 
         if (inst->reconvergeValid()) {
             renameRcvg(inst, inst->threadNumber);
-            // renameDestRegs(inst, inst->threadNumber);
         } else {
             renameSrcRegs(inst, inst->threadNumber);
             renameDestRegs(inst, inst->threadNumber);
@@ -841,7 +800,9 @@ Rename::renameInsts(ThreadID tid)
         }
 
         // update poison set
-        update_poison_set(gen_inst_info(inst), poison_set, inst->reconvergeValid());
+        for (int i = 0; i < wpq_ctx_size; i++) {
+            update_poison_set(gen_inst_info(inst), wpq_ctx[i].poison_set, inst->reconvergeValid() && (i==reconverged_wpq_idx));
+        }
 
         if (inst->isAtomic() || inst->isStore()) {
             storesInProgress[tid]++;
@@ -1662,25 +1623,24 @@ Rename::dumpHistory()
 void
 Rename::notify(DynInstPtr inst)
 {
-    if (( wrongPathQueue.empty()) ||
-        (!wrongPathQueue.empty() && ((inst->seqNum + 1) != wrongPathQueue.front().seqNum))) {
-        // printf("Rcvg len: %ld\n", wrongPathQueue.size());
+    const auto& wpq = wpq_ctx[wpq_curr_idx].wrongPathQueue;
+    if (( wpq.empty()) ||
+        (!wpq.empty() && ((inst->seqNum + 1) != wpq.front().seqNum))) {
 
         // new squash stream
-        // once we see a squash, reset poison
-        memset(poison_set, 0, 128*sizeof(int));
-        wrongPathQueue.clear();
-        // store_forward_tbl.clear();
-        reconverged=false;
-        diverged=false;
-        // for (const auto& p : delayed_phy_list) {
-            // freeList->addReg(p.second);
-        // }
-        // delayed_phy_list.clear();
+        wpq_curr_idx = wpq_curr_idx == wpq_ctx_size - 1 ? 0 : wpq_curr_idx + 1;
+        wpq_ctx[wpq_curr_idx].wrongPathQueue.clear();
+        wpq_ctx[wpq_curr_idx].wpq_it = wpq_ctx[wpq_curr_idx].wrongPathQueue.begin();
+        wpq_ctx[wpq_curr_idx].reconverged = false;
+        wpq_ctx[wpq_curr_idx].diverged = false;
+        memset(wpq_ctx[wpq_curr_idx].poison_set, 0, 128*sizeof(int));
+
+        if (reconverged_wpq_idx == wpq_curr_idx)
+            // if we are overwriting the stream that is reconverged, reset reconverge
+            reconverged = false;
     }
 
     DPRINTF(RcvgRename, "[Seq: %lu]Inst %lx squashed! Executed? %d\n", inst->seqNum, inst->pcState().instAddr(), inst->isIssued()&& inst->isExecuted());
-    // DPRINTF(RcvgRename, "[Sn:%ld] recv squash pc %lx\n", inst->seqNum, inst->pcState().instAddr());
 
     if((inst->opClass() == IntAluOp  ||
        inst->opClass() == IntMultOp ||
@@ -1701,25 +1661,7 @@ Rename::notify(DynInstPtr inst)
     }
 
     InstInfo inst_info = gen_inst_info(inst);
-    wrongPathQueue.push_front(inst_info);
-    // if (inst_info.numDstRegs > 0 && (inst->renamedDestIdx(0) != inst->prevDestIdx(0))) {
-        // assert(inst_info.numDstRegs == 1);
-        // delayed_phy_list[inst->seqNum] = inst->renamedDestIdx(0);
-    // }
-    
-    // if (inst_info.isStore && inst_info.isExecuted) {
-        // // check if we can forward to a younger load
-        // Addr st_addr = inst_info.mem_addr;
-        // Addr st_size = inst_info.mem_size;
-        // for (int i = 1; i < wrongPathQueue.size() ; i++) {
-            // const auto& ld_info = wrongPathQueue[i];
-            // if (ld_info.isExecuted && ld_info.mem_addr == st_addr &&
-                // ld_info.mem_size == st_size && !ld_info.squash_foward) {
-                // wrongPathQueue[i].dstRegInfo[0] = inst_info.srcRegInfo[1];
-                // wrongPathQueue[i].squash_foward = true;
-            // }
-        // }
-    // }
+    wpq_ctx[wpq_curr_idx].wrongPathQueue.push_front(inst_info);
 }
 
 Rename::InstInfo
@@ -1784,72 +1726,77 @@ Rename::gen_inst_info(DynInstPtr inst)
     return inst_info;
 }
 
-void Rename::try_find_reconvergence(const DynInstPtr& inst)
+int Rename::try_find_reconvergence(const DynInstPtr& inst)
 {
     // search reconvergence
-    int l=0;
-    for (auto it = wrongPathQueue.begin() ; it != wrongPathQueue.end(); it++) {
-        l++;
-        if (inst->pcState().instAddr() == it->pc) {
-            DPRINTF(Rcvg, "[Sn:%ld] Rename found start pc %lx\n", inst->seqNum, it->pc);
-            reconverged = true;
-            receive_squash=false; // after finding reconvergence, stop receiving squash
-            diverged = false;
-            wpq_it = it;
-            // printf("Rcvg len2: %ld\n", l);
-            break;
+    int wpq_idx = wpq_curr_idx;
+    bool find_reconverge = false;
+    do {
+        if (wpq_ctx[wpq_idx].diverged) {
+            assert(wpq_ctx[wpq_idx].reconverged);
+            wpq_idx = wpq_idx == 0 ? wpq_ctx_size - 1 : wpq_idx - 1;
+            // wpq_idx = wpq_idx == wpq_ctx_size - 1 ? 0 : wpq_idx + 1;
+            continue;
         }
-    }
+        for (auto it = wpq_ctx[wpq_idx].wrongPathQueue.begin() ; it != wpq_ctx[wpq_idx].wrongPathQueue.end(); it++) {
+            if (inst->pcState().instAddr() == it->pc) {
+                DPRINTF(Rcvg, "[Sn:%ld] Rename found start pc %lx\n", inst->seqNum, it->pc);
+                wpq_ctx[wpq_idx].reconverged = true;
+                wpq_ctx[wpq_idx].diverged = false;
+                wpq_ctx[wpq_idx].wpq_it = it;
+                find_reconverge = true;
+                break;
+            }
+        }
 
-    if (!reconverged)
-        return;
+        if (find_reconverge)
+            break;
+
+        wpq_idx = wpq_idx == 0 ? wpq_ctx_size - 1 : wpq_idx - 1;
+        // wpq_idx = wpq_idx == wpq_ctx_size - 1 ? 0 : wpq_idx + 1;
+    } while (wpq_idx != wpq_curr_idx);
+
+    if (!find_reconverge)
+        return -1;
 
     // update poison set
-    int poison_set_tmp[128];
-    bool src_poisoned = false;
-    memset(poison_set_tmp,  0, sizeof(int) * 128);
-    for (auto it = wrongPathQueue.begin(); it != wpq_it; it++) {
-        update_poison_set(*it, poison_set_tmp,false);
+    // for now, merge all pv from all streams. This might be overkill
+    for (int i = 0 ; i < wpq_ctx_size; i++) {
+        // FIXME: Do we need to blind poison all streams?
+        // if (!wpq_ctx[i].reconverged)
+            // continue;
+        // auto end_it = (i == wpq_idx)? wpq_ctx[i].wpq_it : wpq_ctx[i].wrongPathQueue.end();
+        auto end_it = wpq_ctx[i].wrongPathQueue.end();
+        int poison_set_tmp[128];
+        memset(poison_set_tmp,  0, sizeof(int) * 128);
+        for (auto it = wpq_ctx[i].wrongPathQueue.begin(); it != end_it; it++) {
+            update_poison_set(*it, poison_set_tmp,false);
+        }
+        for (int i = 0 ; i < 128; i++)
+            wpq_ctx[wpq_idx].poison_set[i] |= poison_set_tmp[i];
     }
-    for (int i = 0 ; i < 128; i++)
-        poison_set[i] |= poison_set_tmp[i];
+    
+    return wpq_idx;
 }
 
-void Rename::update_poison_set(const Rename::InstInfo& inst, int pset[], bool reconverged)
+void Rename::update_poison_set(const Rename::InstInfo& inst, int pset[], bool _reconverged)
 {
-    // bool src_poisoned = false;
-    // if (inst.isMemRef ) {
-        // src_poisoned = true;
-    // } else {
-        // for (int i = 0; i < inst.numSrcRegs; i++) {
-            // int flat_reg_idx = inst.srcRegInfo[i].cls_idx * 32 + inst.srcRegInfo[i].reg_idx;
-            // assert(flat_reg_idx < 128);
-            // if (pset[flat_reg_idx]) {
-                // src_poisoned = true;
-                // break;
-            // }
-        // }
-    // }
     for (int i = 0 ; i < inst.numDstRegs ; i++) {
         int flat_reg_idx = inst.dstRegInfo[i].cls_idx * 32 + inst.dstRegInfo[i].reg_idx;
         assert(flat_reg_idx < 128);
-        // poison dest if source is poisoned
-        // else dest is un-poisoned
-        // This has some issue, rethink about this
-        //  pset[flat_reg_idx] = src_poisoned;
-        // pset[flat_reg_idx] = reconverged ? src_poisoned : true;
-        pset[flat_reg_idx] = !reconverged;
+        pset[flat_reg_idx] = !_reconverged;
+        // pset[flat_reg_idx] = true;
         DPRINTF(RcvgRename, "[Sn:%ld] Rename marks flat regid %ld to %d\n", inst.seqNum, flat_reg_idx, pset[flat_reg_idx]);
     }
     return;
 }
 
-bool Rename::src_are_poisoned(const DynInstPtr& inst)
+bool Rename::src_are_poisoned(const DynInstPtr& inst, int wpq_idx)
 {
     for (int i = 0; i < inst->numSrcRegs(); i++) {
         int flat_reg_idx = inst->srcRegIdx(i).classValue() * 32 + inst->srcRegIdx(i).index();
         assert(flat_reg_idx < 128);
-        if (poison_set[flat_reg_idx]) {
+        if (wpq_ctx[wpq_idx].poison_set[flat_reg_idx]) {
             return true;
         }
     }
