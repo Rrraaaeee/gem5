@@ -474,6 +474,7 @@ class Rename : public ProbeListener
         uint32_t cls_idx;
         uint64_t val;
         int rgid;
+        int rgid_old;
     };
 
     struct InstInfo {
@@ -487,8 +488,8 @@ class Rename : public ProbeListener
         bool isControl;
         uint8_t numSrcRegs;
         uint8_t numDstRegs;
-        RegInfo srcRegInfo[3];
-        RegInfo dstRegInfo[1];
+        RegInfo srcRegInfo[4];
+        RegInfo dstRegInfo[2];
 
         // br info
         bool br_taken;
@@ -524,6 +525,7 @@ class Rename : public ProbeListener
     };
     std::vector<WrongPathQueueCtx> wpq_ctx;
     int wpq_ctx_size = 1;
+    int wpq_stream_size = 16;
     int wpq_curr_idx = 0;
     bool reconverged = false;
     int reconverged_wpq_idx = 0;

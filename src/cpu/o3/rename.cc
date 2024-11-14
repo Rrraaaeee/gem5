@@ -765,6 +765,7 @@ Rename::renameInsts(ThreadID tid)
                     for (int i = 0 ; i < wpq_it->numDstRegs; i++) {
                         inst->reuse_dst_reg_vals[i] = wpq_it->dstRegInfo[i].val;
                         inst->reuse_dst_reg_rgid[i] = wpq_it->dstRegInfo[i].rgid;
+                        inst->reuse_dst_reg_rgid_old[i] = wpq_it->dstRegInfo[i].rgid_old;
                     }
 
                     if (inst->isLoad()) {
@@ -1128,10 +1129,10 @@ Rename::renameRcvg(const DynInstPtr& inst, ThreadID tid)
 
         DPRINTF(RcvgRename,
                 "[tid:%i] "
-                "Renaming src arch reg %i (%s) to physical reg %i (%i) in rename rcvg.\n",
+                "Renaming src arch reg %i (%s) to physical reg %i (%i) in rename rcvg (rgid %d).\n",
                 tid, src_reg.index(), src_reg.className(),
                 rename_result.first->index(),
-                rename_result.first->flatIndex());
+                rename_result.first->flatIndex(), rgid);
 
         // Record the rename information so that a history can be kept.
         RenameHistory hb_entry(inst->seqNum, flat_src_regid,
@@ -1141,9 +1142,9 @@ Rename::renameRcvg(const DynInstPtr& inst, ThreadID tid)
         historyBuffer[tid].push_front(hb_entry);
 
         DPRINTF(RcvgRename, "[tid:%i] [sn:%llu] "
-                "Adding instruction to history buffer (size=%i) in rename rcvg.\n",
+                "Adding instruction to history buffer (size=%i) in rename rcvg. (rgid %d)\n",
                 tid,(*historyBuffer[tid].begin()).instSeqNum,
-                historyBuffer[tid].size());
+                historyBuffer[tid].size(), rgid);
 
         // straight set src value to reused value
         inst->renameSrcReg(src_idx, rename_result.first, rgid);
@@ -1165,6 +1166,7 @@ Rename::renameRcvg(const DynInstPtr& inst, ThreadID tid)
 
         rename_result = map->rename(flat_dest_regid);
         int rgid = inst->reuse_dst_reg_rgid[dest_idx];
+        int rgid_old = inst->reuse_dst_reg_rgid_old[dest_idx];
         map->setRgid(flat_dest_regid, rgid);
         assert(rgid == map->lookupRgid(dest_reg));
 
@@ -1172,22 +1174,22 @@ Rename::renameRcvg(const DynInstPtr& inst, ThreadID tid)
 
         DPRINTF(Rename,
                 "[tid:%i] "
-                "Renaming arch reg %i (%s) to physical reg %i (%i) in rename rcvg\n",
+                "Renaming arch reg %i (%s) to physical reg %i (%i) in rename rcvg (rgid %d)\n",
                 tid, dest_reg.index(), dest_reg.className(),
                 rename_result.first->index(),
-                rename_result.first->flatIndex());
+                rename_result.first->flatIndex(), rgid);
 
         // Record the rename information so that a history can be kept.
         RenameHistory hb_entry(inst->seqNum, flat_dest_regid,
                                rename_result.first,
-                               rename_result.second, rgid);
+                               rename_result.second, rgid_old);
 
         historyBuffer[tid].push_front(hb_entry);
 
         DPRINTF(Rename, "[tid:%i] [sn:%llu] "
-                "Adding instruction to history buffer (size=%i) in rename rcvg.\n",
+                "Adding instruction to history buffer (size=%i) in rename rcvg. (rgid %d)\n",
                 tid,(*historyBuffer[tid].begin()).instSeqNum,
-                historyBuffer[tid].size());
+                historyBuffer[tid].size(), rgid);
 
         // Tell the instruction to rename the appropriate destination
         // register (dest_idx) to the new physical register
@@ -1196,7 +1198,7 @@ Rename::renameRcvg(const DynInstPtr& inst, ThreadID tid)
         // (rename_result.second).
         inst->renameDestReg(dest_idx,
                             rename_result.first,
-                            rename_result.second, rgid);
+                            rename_result.second, rgid, rgid_old);
         scoreboard->setReg(rename_result.first);
         // inst->setRegOperand(inst->staticInst.get(), src_idx, &(inst->reuse_src_reg_vals[src_idx]));
         if (!rename_result.first->is(InvalidRegClass))
@@ -1329,7 +1331,7 @@ Rename::renameDestRegs(const DynInstPtr &inst, ThreadID tid, bool reuse)
         // (rename_result.second).
         inst->renameDestReg(dest_idx,
                             rename_result.first,
-                            rename_result.second, rgid);
+                            rename_result.second, rgid, old_rgid);
 
         ++stats.renamedOperands;
     }
@@ -1648,7 +1650,7 @@ void
 Rename::notify(DynInstPtr inst)
 {
     const auto& wpq = wpq_ctx[wpq_curr_idx].wrongPathQueue;
-    if (( wpq.empty()) ||
+    if (( wpq.empty()) || wpq.size() >= wpq_stream_size || 
         (!wpq.empty() && ((inst->seqNum + 1) != wpq.front().seqNum))) {
 
         // new squash stream
@@ -1705,7 +1707,7 @@ Rename::gen_inst_info(DynInstPtr inst)
     inst_info.mem_addr    = inst->effAddrValid() ? inst->effAddr : 0ull;
     inst_info.mem_size    = inst->effAddrValid() ? inst->effSize : 0;
     inst_info.squash_foward  = false; // try squash store-to-load forwarding
-
+    
     if (inst->isControl() && inst->isExecuted()) {
         inst_info.br_taken = inst->isUncondCtrl() ? true :
                              inst->mispredicted() ? !inst->readPredTaken() :
@@ -1720,8 +1722,8 @@ Rename::gen_inst_info(DynInstPtr inst)
             .reg_idx = reg.index(),
             .cls_idx = (uint32_t) reg.classValue(),
             .val     = inst->src_reg_vals[i],
-            .rgid    = inst->src_reg_rgid[i]
-            
+            .rgid    = inst->src_reg_rgid[i],
+            .rgid_old= -1
         };
         inst_info.srcRegInfo[i] = reg_info;
     }
@@ -1731,7 +1733,8 @@ Rename::gen_inst_info(DynInstPtr inst)
             .reg_idx = reg.index(),
             .cls_idx = (uint32_t) reg.classValue(),
             .val     = inst->dst_reg_vals[i],
-            .rgid    = inst->dst_reg_rgid[i]
+            .rgid    = inst->dst_reg_rgid[i],
+            .rgid_old= inst->dst_reg_rgid_old[i]
         };
         inst_info.dstRegInfo[i] = reg_info;
     }

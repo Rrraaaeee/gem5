@@ -367,11 +367,13 @@ class DynInst : public ExecContext, public RefCounted
 
     int src_reg_rgid[4];
     int dst_reg_rgid[2];
+    int dst_reg_rgid_old[2];
 
     uint64_t reuse_src_reg_vals[4];
     uint64_t reuse_dst_reg_vals[2];
     int reuse_src_reg_rgid[4];
     int reuse_dst_reg_rgid[2];
+    int reuse_dst_reg_rgid_old[2];
 
     bool reuse_br_vld = false;
     bool reuse_br_taken = false;
@@ -500,13 +502,14 @@ class DynInst : public ExecContext, public RefCounted
      */
     void
     renameDestReg(int idx, PhysRegIdPtr renamed_dest,
-                  PhysRegIdPtr previous_rename, int _rgid)
+                  PhysRegIdPtr previous_rename, int _rgid, int _rgid_old)
     {
         renamedDestIdx(idx, renamed_dest);
         prevDestIdx(idx, previous_rename);
         if (renamed_dest->isPinned())
             setPinnedRegsRenamed();
         dst_reg_rgid[idx] = _rgid;
+        dst_reg_rgid_old[idx] = _rgid_old;
     }
 
     /** Renames a source logical register to the physical register which
