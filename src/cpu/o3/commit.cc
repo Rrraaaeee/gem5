@@ -1389,6 +1389,8 @@ Commit::commitHead(const DynInstPtr &head_inst, unsigned inst_num)
         head_inst->traceData->setReuseLdVld(head_inst->reuse_ld_vld);
         head_inst->traceData->setReuseLdSuccess(!head_inst->reuse_ld_failed);
         head_inst->traceData->setReconverged(head_inst->reconvergeValid());
+        head_inst->traceData->setSrcRgids(head_inst->src_reg_rgid, head_inst->numSrcRegs());
+        head_inst->traceData->setDstRgids(head_inst->dst_reg_rgid, head_inst->numDestRegs());
         head_inst->traceData->dump();
 
         delete head_inst->traceData;

@@ -162,6 +162,8 @@ class InstRecord
     bool reuse_ld_vld = false;
     bool reuse_ld_success = false;
     bool reconverged = 0;
+    int src_reg_rgids[4];
+    int dst_reg_rgids[2];
 
   public:
     InstRecord(Tick _when, ThreadContext *_thread,
@@ -282,6 +284,18 @@ class InstRecord
     void setReuseLdSuccess(bool b) { reuse_ld_success = b; }
 
     void setReconverged(bool b) { reconverged = b; }
+
+    void setSrcRgids(int rgid[4], int n) { 
+        for (int i = 0; i < n ; i++) {
+            src_reg_rgids[i] = rgid[i];
+        }
+    }
+
+    void setDstRgids(int rgid[2], int n) { 
+        for (int i = 0; i < n ; i++) {
+            dst_reg_rgids[i] = rgid[i];
+        }
+    }
 
     virtual void dump() = 0;
 

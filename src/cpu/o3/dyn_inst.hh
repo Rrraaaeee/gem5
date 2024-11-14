@@ -299,9 +299,10 @@ class DynInst : public ExecContext, public RefCounted
     }
 
     void
-    renamedSrcIdx(int idx, PhysRegIdPtr phys_reg_id)
+    renamedSrcIdx(int idx, PhysRegIdPtr phys_reg_id, int rgid)
     {
         _srcIdx[idx] = phys_reg_id;
+        src_reg_rgid[idx] = rgid;
     }
 
     bool
@@ -364,8 +365,13 @@ class DynInst : public ExecContext, public RefCounted
     uint64_t src_reg_vals[4];
     uint64_t dst_reg_vals[2];
 
+    int src_reg_rgid[4];
+    int dst_reg_rgid[2];
+
     uint64_t reuse_src_reg_vals[4];
     uint64_t reuse_dst_reg_vals[2];
+    int reuse_src_reg_rgid[4];
+    int reuse_dst_reg_rgid[2];
 
     bool reuse_br_vld = false;
     bool reuse_br_taken = false;
@@ -494,12 +500,13 @@ class DynInst : public ExecContext, public RefCounted
      */
     void
     renameDestReg(int idx, PhysRegIdPtr renamed_dest,
-                  PhysRegIdPtr previous_rename)
+                  PhysRegIdPtr previous_rename, int _rgid)
     {
         renamedDestIdx(idx, renamed_dest);
         prevDestIdx(idx, previous_rename);
         if (renamed_dest->isPinned())
             setPinnedRegsRenamed();
+        dst_reg_rgid[idx] = _rgid;
     }
 
     /** Renames a source logical register to the physical register which
@@ -507,9 +514,9 @@ class DynInst : public ExecContext, public RefCounted
      *  @todo: add in whether or not the source register is ready.
      */
     void
-    renameSrcReg(int idx, PhysRegIdPtr renamed_src)
+    renameSrcReg(int idx, PhysRegIdPtr renamed_src, int rgid)
     {
-        renamedSrcIdx(idx, renamed_src);
+        renamedSrcIdx(idx, renamed_src, rgid);
     }
 
     /** Dumps out contents of this BaseDynInst. */

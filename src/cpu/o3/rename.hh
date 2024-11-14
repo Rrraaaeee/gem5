@@ -301,9 +301,9 @@ class Rename : public ProbeListener
     {
         RenameHistory(InstSeqNum _instSeqNum, const RegId& _archReg,
                       PhysRegIdPtr _newPhysReg,
-                      PhysRegIdPtr _prevPhysReg)
+                      PhysRegIdPtr _prevPhysReg, int _rgid)
             : instSeqNum(_instSeqNum), archReg(_archReg),
-              newPhysReg(_newPhysReg), prevPhysReg(_prevPhysReg)
+              newPhysReg(_newPhysReg), prevPhysReg(_prevPhysReg), rgid(_rgid)
         {
         }
 
@@ -316,6 +316,7 @@ class Rename : public ProbeListener
         /** The old physical register that the arch. register was renamed to.
          */
         PhysRegIdPtr prevPhysReg;
+        int rgid;
     };
 
     /** A per-thread list of all destination register renames, used to either
@@ -472,6 +473,7 @@ class Rename : public ProbeListener
         uint32_t reg_idx;
         uint32_t cls_idx;
         uint64_t val;
+        int rgid;
     };
 
     struct InstInfo {
@@ -521,10 +523,11 @@ class Rename : public ProbeListener
         bool diverged;
     };
     std::vector<WrongPathQueueCtx> wpq_ctx;
-    int wpq_ctx_size = 4;
+    int wpq_ctx_size = 1;
     int wpq_curr_idx = 0;
     bool reconverged = false;
     int reconverged_wpq_idx = 0;
+    int rgid_pool[128];
 
     /** Enum to record the source of a structure full stall.  Can come from
      * either ROB, IQ, LSQ, and it is priortized in that order.

@@ -125,7 +125,16 @@ Trace::ExeTracerRecord::traceInst(const StaticInstPtr &inst, bool ran)
         }
 
         if (debug::ExecResult) {
-            outs << " Rcvg=" << reconverged;
+            for (int i = 0 ; i < inst->numSrcRegs() ; i++) {
+                outs << " rgid_s" << i << "=" << src_reg_rgids[i];
+            }
+            for (int i = 0 ; i < inst->numDestRegs() ; i++) {
+                outs << " rgid_d" << i << "=" << dst_reg_rgids[i];
+            }
+        }
+
+        if (debug::ExecResult) {
+            outs << " Rgid=" << reconverged;
         }
 
         if (debug::ExecResult) {
