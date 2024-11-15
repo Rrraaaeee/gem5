@@ -511,6 +511,7 @@ class Rename : public ProbeListener
     bool src_are_poisoned(const DynInstPtr& inst, int wpq_idx);
     int try_find_reconvergence(const DynInstPtr& inst);
     void try_store_forward(const DynInstPtr& inst);
+    void invalidate_mem_violation(const DynInstPtr& inst);
 
     InstInfo gen_inst_info(DynInstPtr inst);
     std::unordered_map<InstSeqNum, PhysRegIdPtr> delayed_phy_list;
@@ -524,12 +525,14 @@ class Rename : public ProbeListener
         bool diverged;
     };
     std::vector<WrongPathQueueCtx> wpq_ctx;
-    int wpq_ctx_size = 8;
-    int wpq_stream_size = 64;
+    int wpq_ctx_size = 4;
+    int wpq_stream_size = 96;
     int wpq_curr_idx = 0;
     bool reconverged = false;
     int reconverged_wpq_idx = 0;
     int rgid_pool[128];
+    int nuke_seqNum;
+    int nuke_vld;
 
     /** Enum to record the source of a structure full stall.  Can come from
      * either ROB, IQ, LSQ, and it is priortized in that order.

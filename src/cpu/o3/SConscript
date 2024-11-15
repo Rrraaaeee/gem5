@@ -71,6 +71,7 @@ if env['CONF']['TARGET_ISA'] != 'null':
     DebugFlag('Writeback')
     DebugFlag('Rcvg')
     DebugFlag('RcvgRename')
+    DebugFlag('RcvgDebug')
 
     CompoundFlag('O3CPUAll', [ 'Fetch', 'Decode', 'Rename', 'IEW', 'Commit',
         'IQ', 'ROB', 'FreeList', 'LSQ', 'LSQUnit', 'StoreSet', 'MemDepUnit',

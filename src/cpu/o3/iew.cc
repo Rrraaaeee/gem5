@@ -1475,6 +1475,7 @@ IEW::tick()
 
             if (inst->reuse_dst_reg_vals[0] != inst->dst_reg_vals[0]) {
                 inst->memViolated(true);
+                cpu->rename.invalidate_mem_violation(inst);
                 squashDueToMemOrder(inst, tid);
                 break;
             }

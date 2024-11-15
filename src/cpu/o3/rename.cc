@@ -51,6 +51,7 @@
 #include "debug/O3PipeView.hh"
 #include "debug/Rename.hh"
 #include "debug/Rcvg.hh"
+#include "debug/RcvgDebug.hh"
 #include "debug/RcvgRename.hh"
 #include "params/BaseO3CPU.hh"
 
@@ -756,6 +757,9 @@ Rename::renameInsts(ThreadID tid)
                     DPRINTF(RcvgRename, "[Rcvg][Seq %ld] Reconverge pc %lx reuse from seq %ld\n", inst->seqNum, inst->pcState().instAddr(), wpq_it->seqNum);
                     DPRINTF(Rcvg, "[Seq %ld] Reconverge pc %lx is CIDI\n", wpq_it->seqNum, inst->pcState().instAddr());
 
+                    DPRINTF(RcvgDebug, "Instruction %ld %lx reconverged from %ld\n",
+                            inst->seqNum, inst->pcState().instAddr(), wpq_it->seqNum);
+
                     inst->reconvergeValid(true);
 
                     for (int i = 0 ; i < wpq_it->numSrcRegs; i++) {
@@ -781,6 +785,7 @@ Rename::renameInsts(ThreadID tid)
                     }
                     assert(wpq_it->numDstRegs==1);
                     inst->reuse_dst_reg_vals[0] = wpq_it->dstRegInfo[0].val;
+                    inst->rcvg_ld_seqNum = wpq_it->seqNum;
                 }
 
                 if (!early_redirect)
@@ -1153,6 +1158,9 @@ Rename::renameRcvg(const DynInstPtr& inst, ThreadID tid)
         if (!rename_result.first->is(InvalidRegClass))
             cpu->setReg(rename_result.first, &(inst->reuse_src_reg_vals[src_idx]));
         inst->markSrcRegReady(src_idx);
+
+        DPRINTF(RcvgDebug, "Rcvg rename src%d(%d) rgid %d %ld %lx\n",
+                            src_idx, src_reg.index(), rgid, inst->seqNum, inst->pcState().instAddr());
     }
 
     // rename dst reg
@@ -1203,6 +1211,9 @@ Rename::renameRcvg(const DynInstPtr& inst, ThreadID tid)
         // inst->setRegOperand(inst->staticInst.get(), src_idx, &(inst->reuse_src_reg_vals[src_idx]));
         if (!rename_result.first->is(InvalidRegClass))
             cpu->setReg(rename_result.first, &(inst->reuse_dst_reg_vals[dest_idx]));
+
+        DPRINTF(RcvgDebug, "Rcvg rename dst%d(%d) rgid (%d->%d) %ld %lx\n",
+                            dest_idx, dest_reg.index(), rgid_old, rgid, inst->seqNum, inst->pcState().instAddr());
     }
 }
 
@@ -1253,6 +1264,8 @@ Rename::renameSrcRegs(const DynInstPtr &inst, ThreadID tid)
                 src_reg.index(), renamed_reg->index(),
                 renamed_reg->className(), rgid);
 
+        DPRINTF(RcvgDebug, "Normal rename src%d(%d) rgid %d %ld %lx\n",
+                            src_idx, src_reg.index(), rgid, inst->seqNum, inst->pcState().instAddr());
 
         inst->renameSrcReg(src_idx, renamed_reg, rgid);
 
@@ -1335,6 +1348,9 @@ Rename::renameDestRegs(const DynInstPtr &inst, ThreadID tid, bool reuse)
                             rename_result.second, rgid, old_rgid);
 
         ++stats.renamedOperands;
+
+        DPRINTF(RcvgDebug, "Normal rename dst%d(%d) rgid (%d->%d) %ld %lx\n",
+                            dest_idx, dest_reg.index(), old_rgid, rgid, inst->seqNum, inst->pcState().instAddr());
     }
 }
 
@@ -1650,6 +1666,12 @@ Rename::dumpHistory()
 void
 Rename::notify(DynInstPtr inst)
 {
+    if (nuke_vld && nuke_seqNum <= inst->seqNum) {
+        return;
+    }
+    nuke_vld = false;
+
+
     const auto& wpq = wpq_ctx[wpq_curr_idx].wrongPathQueue;
     if (( wpq.empty()) || wpq.size() >= wpq_stream_size || 
         (!wpq.empty() && ((inst->seqNum + 1) != wpq.front().seqNum))) {
@@ -1858,6 +1880,22 @@ void Rename::try_store_forward(const DynInstPtr& inst)
             store_forward_tbl[st_va] = {.seqNum=seqNum, .size=st_sz, .dat=dat};
         }
     }
+}
+
+void Rename::invalidate_mem_violation(const DynInstPtr& inst)
+{
+    // since we do not know what instructions depend on the mem violated inst,
+    // we need to do nuke flush
+    for (int i = 0 ; i < wpq_ctx_size; i++) {
+        wpq_ctx[i].wrongPathQueue.clear();
+        wpq_ctx[i].wpq_it = wpq_ctx[i].wrongPathQueue.begin();
+        wpq_ctx[i].reconverged = false;
+        wpq_ctx[i].diverged = false;
+        memset(wpq_ctx[wpq_curr_idx].poison_set, 0, 128*sizeof(int));
+    }
+    reconverged = false;
+    nuke_seqNum = inst->seqNum;
+    nuke_vld = true;
 }
 
 } // namespace o3

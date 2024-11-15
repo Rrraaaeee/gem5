@@ -61,6 +61,7 @@
 #include "debug/Commit.hh"
 #include "debug/CommitRate.hh"
 #include "debug/Drain.hh"
+#include "debug/RcvgDebug.hh"
 #include "debug/ExecFaulting.hh"
 #include "debug/HtmCpu.hh"
 #include "debug/O3PipeView.hh"
@@ -1024,6 +1025,8 @@ Commit::commitInsts()
 
             rob->retireHead(commit_thread);
 
+            DPRINTF(RcvgDebug, "Retire squashed instruction %ld %lx\n", head_inst->seqNum, head_inst->pcState().instAddr());
+
             ++stats.commitSquashedInsts;
             // Notify potential listeners that this instruction is squashed
             ppSquash->notify(head_inst);
@@ -1119,6 +1122,8 @@ Commit::commitInsts()
                 ++num_committed;
                 stats.committedInstType[tid][head_inst->opClass()]++;
                 ppCommit->notify(head_inst);
+
+                DPRINTF(RcvgDebug, "Commit instruction %ld %lx\n", head_inst->seqNum, head_inst->pcState().instAddr());
 
                 // hardware transactional memory
 

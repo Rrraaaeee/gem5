@@ -382,6 +382,8 @@ class DynInst : public ExecContext, public RefCounted
     bool reuse_ld_vld = false;
     bool reuse_ld_failed = false;
 
+    InstSeqNum rcvg_ld_seqNum = 0;
+
     /////////////////////// TLB Miss //////////////////////
     /**
      * Saved memory request (needed when the DTB address translation is
