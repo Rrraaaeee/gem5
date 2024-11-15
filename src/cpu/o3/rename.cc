@@ -1166,18 +1166,18 @@ Rename::renameRcvg(const DynInstPtr& inst, ThreadID tid)
 
         rename_result = map->rename(flat_dest_regid);
         int rgid = inst->reuse_dst_reg_rgid[dest_idx];
-        int rgid_old = inst->reuse_dst_reg_rgid_old[dest_idx];
+        // int rgid_old = inst->reuse_dst_reg_rgid_old[dest_idx];
+        int rgid_old = map->lookupRgid(dest_reg);
         map->setRgid(flat_dest_regid, rgid);
-        assert(rgid == map->lookupRgid(dest_reg));
 
         inst->flattenedDestIdx(dest_idx, flat_dest_regid);
 
         DPRINTF(Rename,
                 "[tid:%i] "
-                "Renaming arch reg %i (%s) to physical reg %i (%i) in rename rcvg (rgid %d)\n",
+                "Renaming arch reg %i (%s) to physical reg %i (%i) in rename rcvg (rgid %d, rgid old %d)\n",
                 tid, dest_reg.index(), dest_reg.className(),
                 rename_result.first->index(),
-                rename_result.first->flatIndex(), rgid);
+                rename_result.first->flatIndex(), rgid, rgid_old);
 
         // Record the rename information so that a history can be kept.
         RenameHistory hb_entry(inst->seqNum, flat_dest_regid,
@@ -1244,15 +1244,16 @@ Rename::renameSrcRegs(const DynInstPtr &inst, ThreadID tid)
             panic("Invalid register class: %d.", src_reg.classValue());
         }
 
+        int rgid = map->lookupRgid(src_reg);
+
         DPRINTF(Rename,
                 "[tid:%i] "
-                "Looking up %s arch reg %i, got phys reg %i (%s)\n",
+                "Looking up %s arch reg %i, got phys reg %i (%s). Rgid %ld. Normal rename src\n",
                 tid, src_reg.className(),
                 src_reg.index(), renamed_reg->index(),
-                renamed_reg->className());
+                renamed_reg->className(), rgid);
 
 
-        int rgid = map->lookupRgid(src_reg);
         inst->renameSrcReg(src_idx, renamed_reg, rgid);
 
         // See if the register is ready or not.

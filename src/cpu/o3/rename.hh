@@ -524,8 +524,8 @@ class Rename : public ProbeListener
         bool diverged;
     };
     std::vector<WrongPathQueueCtx> wpq_ctx;
-    int wpq_ctx_size = 1;
-    int wpq_stream_size = 16;
+    int wpq_ctx_size = 8;
+    int wpq_stream_size = 64;
     int wpq_curr_idx = 0;
     bool reconverged = false;
     int reconverged_wpq_idx = 0;
